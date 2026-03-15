@@ -1,4 +1,4 @@
-package unievangelica.taskflow.api.controller;
+package unievangelica.taskflow.api.controllers;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
