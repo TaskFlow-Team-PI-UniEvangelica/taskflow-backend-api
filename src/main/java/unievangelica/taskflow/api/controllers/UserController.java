@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import unievangelica.taskflow.api.domain.service.UserService;
+import unievangelica.taskflow.api.dto.request.PasswordChangeRequestDTO;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
@@ -26,5 +27,23 @@ public class UserController {
     public ResponseEntity<UserResponseDTO> criarUsuario(@RequestBody UserRequestDTO data){
         UserResponseDTO novoUsuario = userService.criarUsuario(data);
         return ResponseEntity.status(HttpStatus.CREATED).body(novoUsuario);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<UserResponseDTO> atualizarUsuario(@PathVariable Long id, @RequestBody UserRequestDTO data){
+        UserResponseDTO usuarioAtualizado = userService.atualizarUsuario(id, data);
+        return ResponseEntity.ok(usuarioAtualizado);
+    }
+
+    @PatchMapping("/{id}/password")
+    public ResponseEntity<Void> atualizarSenha(@PathVariable Long id, @RequestBody PasswordChangeRequestDTO data) {
+        userService.autualizarSenha(id, data);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("{id}")
+    public ResponseEntity<Void> deletarUsuario(@PathVariable Long id){
+        userService.deletarUsuario(id);
+        return ResponseEntity.noContent().build();
     }
 }

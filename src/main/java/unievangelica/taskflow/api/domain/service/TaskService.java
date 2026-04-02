@@ -58,7 +58,7 @@ public class TaskService {
         return converterParaDTO(taskLocal);
     }
 
-    //
+    // função para atualizar task
     public TaskResponseDTO atualizarTask(Long id, TaskRequestDTO data){
         TaskEntity taskExiste = taskRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada"));

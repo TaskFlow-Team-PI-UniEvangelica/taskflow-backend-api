@@ -13,6 +13,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.List;
 
 @Configuration // diz que essa classe é uma classe de configuração
 @EnableWebSecurity // habilita as configs do spring security dentro da classe
@@ -23,6 +28,7 @@ public class SpringSecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         return httpSecurity
+                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ativa o cors nessa bagaça para usar o método novo la embaixo
                 .csrf(csrf -> csrf.disable()) // desabilita o csrf para usar os tokens jwt
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // transforma a sessão em stateless para guardar e validar tokens
                 .authorizeHttpRequests(authorize -> authorize
@@ -31,12 +37,36 @@ public class SpringSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/user").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/user").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/user").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/user").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/task").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/task").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(securityfilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
+    }
+
+    // configurção do cors
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // define a url do frontend
+        configuration.setAllowedOrigins(List.of("http://127.0.0.1:5173", "http://localhost:5173"));
+
+        // libera os métodos http q estou usando depois tem q adicionar o patch
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+
+        // permite que o frontend envie os headers dos jsons e tokens
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+
+        // permite enviar as credenciais
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration); // aplicando as configs do cors para todas as rotas
+        return source;
     }
 
     @Bean
