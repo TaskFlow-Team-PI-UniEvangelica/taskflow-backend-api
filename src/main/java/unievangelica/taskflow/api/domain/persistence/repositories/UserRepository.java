@@ -13,25 +13,25 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<UserEntity, Long> {
-
+    
     // atualização dos repositories parando de usar o JPA para gerenciar as consultas
     // e agora utilizando o JPQL para consultar diretamente matendo uma rastreabilidade maior de quais consultas são feitas
     // os métodos de insert ainda são gerenciados pelo JPA por meio da adição inteira das entidades
-    @Query("SELECT COUNT (u) > 0 FROM User u WHERE u.email = :email")
-    boolean existsByEmail(@Param("email") String email);
+    @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.email = :email")
+    boolean userExistsByEmail(@Param("email") String email);
 
     @Query("SELECT u FROM User u WHERE u.email = :email")
-    UserDetails findByEmail(@Param("email")String email);
+    UserDetails userFindByEmail(@Param("email")String email);
 
     @Query("SELECT u FROM User u WHERE u.id = :id")
-    Optional<UserEntity> findById(@Param("id") Long id);
+    Optional<UserEntity> userFindById(@Param("id") Long id);
 
     @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.id = :id")
-    boolean existsById(@Param("id") Long id);
+    boolean userExistsById(@Param("id") Long id);
 
     @Query("SELECT u FROM User u")
-    List<UserEntity> findAll();
-
+    List<UserEntity> userFindAll();
+    
     // esses são os métodos modify nos update e delete para alterar apenas alguns campos do db assim
     // desacoplando a responsabilidade do JPA de sempre salvar uma entidade inteira ao fazer um update
     @Modifying
@@ -44,5 +44,5 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     @Modifying
     @Query("DELETE FROM User u WHERE u.id = :id")
-    void deleteById(@Param("id") Long id);
+    void deleteUserById(@Param("id") Long id);
 }

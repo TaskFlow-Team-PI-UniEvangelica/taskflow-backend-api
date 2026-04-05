@@ -24,7 +24,7 @@ public class UserService {
 
     @Transactional
     public UserResponseDTO criarUsuario(UserRequestDTO data){
-        if (userRepository.existsByEmail(data.email())){
+        if (userRepository.userExistsByEmail(data.email())){
             throw new IllegalArgumentException("Email já cadastrado, tente outro.");
         }
 
@@ -45,7 +45,7 @@ public class UserService {
     }
 
     public List<UserResponseDTO> listarUsuarios() {
-        return userRepository.findAll().stream()
+        return userRepository.userFindAll().stream()
                 .map(this::converterParaDTO)
                 .collect(Collectors.toList());
     }
@@ -53,26 +53,26 @@ public class UserService {
     // anotação para garantir rollback nas operações que trabalham com alterações no banco de dados
     @Transactional
     public UserResponseDTO atualizarUsuario(Long id, UserRequestDTO data) {
-        UserEntity userExiste = userRepository.findById(id)
+        UserEntity userLocal = userRepository.userFindById(id)
                 .orElseThrow(()-> new IllegalArgumentException("Usuário não encontrado"));
 
         // usando tenário para decidir se sera salvo o novo nome ou o nome antigo
-        String novoNome = data.nome() != null ? data.nome() : userExiste.getNome();
-        String novoEmail = data.email() != null ? data.email() : userExiste.getEmail();
+        String novoNome = data.nome() != null ? data.nome() : userLocal.getNome();
+        String novoEmail = data.email() != null ? data.email() : userLocal.getEmail();
 
         // usando a querry do repository para atualizar os dados
         userRepository.updateUser(id, novoNome, novoEmail);
 
         // definindo as variaveis para atualizar o objeto local para converter no DTO
-        userExiste.setNome(novoNome);
-        userExiste.setEmail(novoEmail);
+        userLocal.setNome(novoNome);
+        userLocal.setEmail(novoEmail);
 
-        return converterParaDTO(userExiste);
+        return converterParaDTO(userLocal);
     }
 
     @Transactional
     public void autualizarSenha(Long id, PasswordChangeRequestDTO data){
-        UserEntity usuario = userRepository.findById(id)
+        UserEntity usuario = userRepository.userFindById(id)
                 .orElseThrow(()-> new IllegalArgumentException("Usuário não encontrado")); // procura usuário pelo id
 
         if (!passwordEncoder.matches(data.senhaAtual(), usuario.getSenha())) { // se o hash da senha atual não bater gera uma exception
@@ -88,10 +88,10 @@ public class UserService {
 
     @Transactional
     public void deletarUsuario(Long id){
-        if (!userRepository.existsById(id)) {
+        if (!userRepository.userExistsById(id)) {
             throw new IllegalArgumentException("Ususário não encontrado");
         }
-        userRepository.deleteById(id);
+        userRepository.deleteUserById(id);
     }
 
     private UserResponseDTO converterParaDTO(UserEntity entidade) {

@@ -2,6 +2,7 @@ package unievangelica.taskflow.api.domain.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import unievangelica.taskflow.api.domain.persistence.entities.TaskEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.TaskRepository;
@@ -23,15 +24,16 @@ public class TaskService {
 
     // função que retorna todas as tasks por meio das entidades e transformando elas em responsesDTO
     public List<TaskResponseDTO> listarTasks(){
-        List<TaskEntity> tasksDB = taskRepository.findAll();
+        List<TaskEntity> tasksDB = taskRepository.listAllTasks();
         return tasksDB.stream()
                 .map(this::converterParaDTO)
                 .collect(Collectors.toList());
     }
 
     // função que cria uma task
+    @Transactional
     public TaskResponseDTO criarTask(TaskRequestDTO data){
-        UserEntity criador = userRepository.findById(data.idCriador())
+        UserEntity criador = userRepository.userFindById(data.idCriador())
                 .orElseThrow(() -> new IllegalArgumentException("Erro: Criador não encontrado"));
 
         // seta os valores que não necessitam de validação null
@@ -59,40 +61,37 @@ public class TaskService {
     }
 
     // função para atualizar task
+    @Transactional
     public TaskResponseDTO atualizarTask(Long id, TaskRequestDTO data){
-        TaskEntity taskExiste = taskRepository.findById(id)
+        TaskEntity taskLocal = taskRepository.findTaskById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada"));
 
-        if (data.titulo() != null) {
-            taskExiste.setTitulo(data.titulo());
-        }
+        // operador tenário substituindo o if/else para decidir quando subistituir os campos no update
+        String novoTitulo = data.titulo() != null ? data.titulo() : taskLocal.getTitulo();
+        String novaDescricao = data.descricao() != null ? data.descricao() : taskLocal.getDescricao();
+        LocalDate novoPrazo = data.prazo() != null ? LocalDate.parse(data.prazo()) : taskLocal.getPrazo();
+        TaskEntity.Prioridade novaPrioridade = data.prioridade() != null ? TaskEntity.Prioridade.valueOf(data.prioridade()) : taskLocal.getPrioridade();
+        TaskEntity.Status novoStatus = data.status() != null ? TaskEntity.Status.valueOf(data.status()) : taskLocal.getStatus();
 
-        if (data.descricao() != null) {
-            taskExiste.setDescricao(data.descricao());
-        }
+        // usando o jpql de update para atualizar os dados
+        taskRepository.updateTask(id, novoTitulo, novaDescricao, novoPrazo, novaPrioridade, novoStatus);
 
-        if (data.prazo() != null) {
-            taskExiste.setPrazo(LocalDate.parse(data.prazo()));
-        }
-
-        if (data.prioridade() != null) {
-            taskExiste.setPrioridade(TaskEntity.Prioridade.valueOf(data.prioridade()));
-        }
-
-        if (data.status() != null) {
-            taskExiste.setStatus(TaskEntity.Status.valueOf(data.status()));
-        }
-
-        TaskEntity taskLocal = taskRepository.save(taskExiste);
+        // definindo as variaveis para atualizar o objeto local para converter no DTO
+        taskLocal.setTitulo(novoTitulo);
+        taskLocal.setDescricao(novaDescricao);
+        taskLocal.setPrazo(novoPrazo);
+        taskLocal.setPrioridade(novaPrioridade);
+        taskLocal.setStatus(novoStatus);
 
         return converterParaDTO(taskLocal);
     }
 
+    @Transactional
     public void deletarTask(Long id){
-        if (!taskRepository.existsById(id)) {
+        if (!taskRepository.taskExist(id)) {
             throw new IllegalArgumentException("Tarefa não encontrada");
         }
-        taskRepository.deleteById(id);
+        taskRepository.deleteTask(id);
     }
 
     private TaskResponseDTO converterParaDTO(TaskEntity entidade){
