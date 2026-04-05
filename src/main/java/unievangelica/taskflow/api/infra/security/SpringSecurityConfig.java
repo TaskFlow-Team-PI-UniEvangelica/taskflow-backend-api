@@ -33,6 +33,7 @@ public class SpringSecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // transforma a sessão em stateless para guardar e validar tokens
                 .authorizeHttpRequests(authorize -> authorize
                         // rotas com os respectivos usuários que possuem acesso a elas
+                        .requestMatchers("/error").permitAll() // liberando acesso a rota de erro
                         .requestMatchers(HttpMethod.POST, "/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/user").hasRole("ADMIN")

@@ -27,7 +27,7 @@ public class SecurityFilter extends OncePerRequestFilter { // a cada requisiçã
         var token = this.recoverToken(request); // chama recoverToken
         if (token != null) { // verifica se token é null
             var email = tokenService.validarToken(token); // valida o token usando o service
-            UserDetails user = userRepository.findByEmail(email); // busca no db o email do usuário linkado ao token
+            UserDetails user = userRepository.userFindByEmail(email); // busca no db o email do usuário linkado ao token
 
             var authentication = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()); // cria um objeto de autenticação vinculado ao email e ao cargo
             SecurityContextHolder.getContext().setAuthentication(authentication); // consolida o usuário autenticado para a requisição
