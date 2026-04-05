@@ -3,6 +3,7 @@ package unievangelica.taskflow.api.domain.service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.dto.request.PasswordChangeRequestDTO;
@@ -21,6 +22,7 @@ public class UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Transactional
     public UserResponseDTO criarUsuario(UserRequestDTO data){
         if (userRepository.existsByEmail(data.email())){
             throw new IllegalArgumentException("Email já cadastrado, tente outro.");
@@ -48,23 +50,27 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    // anotação para garantir rollback nas operações que trabalham com alterações no banco de dados
+    @Transactional
     public UserResponseDTO atualizarUsuario(Long id, UserRequestDTO data) {
         UserEntity userExiste = userRepository.findById(id)
                 .orElseThrow(()-> new IllegalArgumentException("Usuário não encontrado"));
 
-        if (data.nome() != null) {
-            userExiste.setNome(data.nome());
-        }
+        // usando tenário para decidir se sera salvo o novo nome ou o nome antigo
+        String novoNome = data.nome() != null ? data.nome() : userExiste.getNome();
+        String novoEmail = data.email() != null ? data.email() : userExiste.getEmail();
 
-        if (data.email() != null) {
-            userExiste.setEmail(data.email());
-        }
+        // usando a querry do repository para atualizar os dados
+        userRepository.updateUser(id, novoNome, novoEmail);
 
-        UserEntity usuarioLocal = userRepository.save(userExiste);
+        // definindo as variaveis para atualizar o objeto local para converter no DTO
+        userExiste.setNome(novoNome);
+        userExiste.setEmail(novoEmail);
 
-        return converterParaDTO(usuarioLocal);
+        return converterParaDTO(userExiste);
     }
 
+    @Transactional
     public void autualizarSenha(Long id, PasswordChangeRequestDTO data){
         UserEntity usuario = userRepository.findById(id)
                 .orElseThrow(()-> new IllegalArgumentException("Usuário não encontrado")); // procura usuário pelo id
@@ -77,9 +83,10 @@ public class UserService {
         String novaSenhaEncriptada = passwordEncoder.encode(data.novaSenha());
         usuario.setSenha(novaSenhaEncriptada);
 
-        userRepository.save(usuario);
+        userRepository.updateUserPassword(id, novaSenhaEncriptada);
     }
 
+    @Transactional
     public void deletarUsuario(Long id){
         if (!userRepository.existsById(id)) {
             throw new IllegalArgumentException("Ususário não encontrado");
