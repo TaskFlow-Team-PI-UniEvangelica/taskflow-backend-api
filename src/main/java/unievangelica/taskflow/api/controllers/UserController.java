@@ -20,7 +20,7 @@ public class UserController {
     private UserService userService;
 
     @GetMapping
-    public ResponseEntity<List>listarTodosUsuarios(){
+    public ResponseEntity<List<UserResponseDTO>>listarTodosUsuarios(){
         List<UserResponseDTO> users = userService.listarUsuarios();
         return ResponseEntity.ok(users);
     }

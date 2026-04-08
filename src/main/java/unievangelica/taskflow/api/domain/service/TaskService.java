@@ -119,6 +119,7 @@ public class TaskService {
                 entidade.getDescricao(),
                 entidade.getStatus().name(),
                 entidade.getPrioridade().name(),
+                entidade.getPrazo(),
                 entidade.getCriador().getNome(), // nome do criador
                 nomesResponsaveis // nome dos responsáveis
         );
