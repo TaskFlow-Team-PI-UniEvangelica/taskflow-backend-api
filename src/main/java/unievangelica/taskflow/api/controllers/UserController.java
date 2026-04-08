@@ -3,7 +3,9 @@ package unievangelica.taskflow.api.controllers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.service.UserService;
 import unievangelica.taskflow.api.dto.request.PasswordChangeRequestDTO;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
@@ -21,6 +23,13 @@ public class UserController {
     public ResponseEntity<List>listarTodosUsuarios(){
         List<UserResponseDTO> users = userService.listarUsuarios();
         return ResponseEntity.ok(users);
+    }
+
+    // rota para listar o usuário logado
+    @GetMapping("/me")
+    public ResponseEntity<UserResponseDTO> perfilDeUsuario(@AuthenticationPrincipal UserEntity userLogado) {
+        UserResponseDTO profile = userService.obterPerfilUsuario(userLogado);
+        return ResponseEntity.ok(profile);
     }
 
     @PostMapping
@@ -41,7 +50,13 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
-    @DeleteMapping("{id}")
+    @PatchMapping("/me/password")
+    public ResponseEntity<Void> atualizarSenhaProprioUsuario(@AuthenticationPrincipal UserEntity userLogado, @RequestBody PasswordChangeRequestDTO data) {
+        userService.autualizarSenha(userLogado.getId(), data);
+        return  ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarUsuario(@PathVariable Long id){
         userService.deletarUsuario(id);
         return ResponseEntity.noContent().build();

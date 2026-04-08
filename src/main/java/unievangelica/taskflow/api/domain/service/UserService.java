@@ -50,6 +50,11 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    // esse método usa o security filter para obter informações do usuário por meio do token e retornar a visualização para o front end
+    public UserResponseDTO obterPerfilUsuario(UserEntity userLogado) {
+        return converterParaDTO(userLogado);
+    }
+
     // anotação para garantir rollback nas operações que trabalham com alterações no banco de dados
     @Transactional
     public UserResponseDTO atualizarUsuario(Long id, UserRequestDTO data) {
