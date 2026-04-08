@@ -161,17 +161,92 @@
       ]
     },
     {
-      "name": "User (Admin)",
+      "name": "User Me (Auth)",
       "item": [
         {
-          "name": "Listar todos os usuários",
+          "name": "Listar Usuário Logado",
           "request": {
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUwOTQ0MDN9.xSDCr3Lkcp0BNd-TkkeEdGg8oPyCB1tORT-yLsH_7Jo",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJmdW5jaW9uYXJpb0BlbWFpbC5jb20iLCJleHAiOjE3NzU2NjA4NDB9._PeVVwTQikhHapP1RchvX5nGgLkTugqC4LQrf2q-VjI",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/user/me",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "user",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Alterar Senha do Usuário Logado",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU2NjY5NDV9.pCzFkZKnu76pPdrFJoLw9nq36okLEiZLCERcIna7UOE",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"senhaAtual\": \"admin123\",\n    \"novaSenha\": \"654321\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/user/me/password",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "user",
+                "me",
+                "password"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User (Auth & Admin)",
+      "item": [
+        {
+          "name": "Listar todos os usuários (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MzM1OTl9.fKvRkDBtDtIlirgsKXYHXesTCDBdvYptnGjGrLUiYQY",
                   "type": "string"
                 }
               ]
@@ -193,14 +268,14 @@
           "response": []
         },
         {
-          "name": "Cadastrar usuário",
+          "name": "Cadastrar usuário (Admin)",
           "request": {
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUwOTI1MTN9.f9sgIbtiCzDjLDbSMMGnR8h5q2KIAhDw9S4ifIfcH1E",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUzOTk2NTB9.BwJdKCouogvtKBx9dDigaE2_GWJaSH5eDpBtCuaRPZA",
                   "type": "string"
                 }
               ]
@@ -231,14 +306,14 @@
           "response": []
         },
         {
-          "name": "Alterar Usuário (menos senha)",
+          "name": "Alterar Usuário (menos senha) (Admin)",
           "request": {
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUwOTMyOTd9.jkDcyra_I3oIIcNL7cZfgPSVC_Wl1EnHNynAdlF8hYI",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUzOTk2NTB9.BwJdKCouogvtKBx9dDigaE2_GWJaSH5eDpBtCuaRPZA",
                   "type": "string"
                 }
               ]
@@ -255,7 +330,7 @@
               }
             },
             "url": {
-              "raw": "http://localhost:8080/user/3",
+              "raw": "http://localhost:8080/user/5",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -263,21 +338,21 @@
               "port": "8080",
               "path": [
                 "user",
-                "3"
+                "5"
               ]
             }
           },
           "response": []
         },
         {
-          "name": "Alterar senha",
+          "name": "Alterar senha (Admin)",
           "request": {
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUwOTMyOTd9.jkDcyra_I3oIIcNL7cZfgPSVC_Wl1EnHNynAdlF8hYI",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUzOTk2NTB9.BwJdKCouogvtKBx9dDigaE2_GWJaSH5eDpBtCuaRPZA",
                   "type": "string"
                 }
               ]
@@ -294,7 +369,7 @@
               }
             },
             "url": {
-              "raw": "http://localhost:8080/user/3/password",
+              "raw": "http://localhost:8080/user/7/password",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -302,7 +377,7 @@
               "port": "8080",
               "path": [
                 "user",
-                "3",
+                "7",
                 "password"
               ]
             }
@@ -310,14 +385,14 @@
           "response": []
         },
         {
-          "name": "Deletar usuário",
+          "name": "Deletar usuário (Admin)",
           "request": {
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUwOTQ0MDN9.xSDCr3Lkcp0BNd-TkkeEdGg8oPyCB1tORT-yLsH_7Jo",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzUzOTk2NTB9.BwJdKCouogvtKBx9dDigaE2_GWJaSH5eDpBtCuaRPZA",
                   "type": "string"
                 }
               ]
@@ -325,7 +400,7 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "http://localhost:8080/user/2",
+              "raw": "http://localhost:8080/user/6",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -333,7 +408,7 @@
               "port": "8080",
               "path": [
                 "user",
-                "2"
+                "6"
               ]
             }
           },
@@ -352,7 +427,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzMyODk3NTd9.BpkIjbfd_bYumtAae641zfjYxCZkUOHgDBZPRwtwHKI",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MzM1OTl9.fKvRkDBtDtIlirgsKXYHXesTCDBdvYptnGjGrLUiYQY",
                   "type": "string"
                 }
               ]
@@ -381,7 +456,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzMyODk3NTd9.BpkIjbfd_bYumtAae641zfjYxCZkUOHgDBZPRwtwHKI",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MzM1OTl9.fKvRkDBtDtIlirgsKXYHXesTCDBdvYptnGjGrLUiYQY",
                   "type": "string"
                 }
               ]
@@ -419,7 +494,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzMyODk3NTd9.BpkIjbfd_bYumtAae641zfjYxCZkUOHgDBZPRwtwHKI",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MDQ4MzV9.6CFfSM99pA4PjTxR-UpqtM_zlXNANRRXOWrj4v94vIU",
                   "type": "string"
                 }
               ]
@@ -427,7 +502,7 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "http://localhost:8080/task/1",
+              "raw": "http://localhost:8080/task/2",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -435,7 +510,7 @@
               "port": "8080",
               "path": [
                 "task",
-                "1"
+                "2"
               ]
             }
           },
@@ -449,7 +524,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzMyODk3NTd9.BpkIjbfd_bYumtAae641zfjYxCZkUOHgDBZPRwtwHKI",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MzM1OTl9.fKvRkDBtDtIlirgsKXYHXesTCDBdvYptnGjGrLUiYQY",
                   "type": "string"
                 }
               ]
@@ -466,7 +541,7 @@
               }
             },
             "url": {
-              "raw": "http://localhost:8080/task/8",
+              "raw": "http://localhost:8080/task/1",
               "protocol": "http",
               "host": [
                 "localhost"
@@ -474,7 +549,7 @@
               "port": "8080",
               "path": [
                 "task",
-                "8"
+                "1"
               ]
             }
           },
