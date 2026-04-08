@@ -50,6 +50,12 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @PatchMapping("/me/password")
+    public ResponseEntity<Void> atualizarSenhaProprioUsuario(@AuthenticationPrincipal UserEntity userLogado, @RequestBody PasswordChangeRequestDTO data) {
+        userService.autualizarSenha(userLogado.getId(), data);
+        return  ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarUsuario(@PathVariable Long id){
         userService.deletarUsuario(id);

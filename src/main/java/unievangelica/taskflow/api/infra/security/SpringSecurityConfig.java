@@ -37,6 +37,7 @@ public class SpringSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/user/me").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/user/me/password").authenticated()
                         .requestMatchers(HttpMethod.GET, "/user").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/user").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/user").hasRole("ADMIN")
@@ -57,8 +58,8 @@ public class SpringSecurityConfig {
         // define a url do frontend
         configuration.setAllowedOrigins(List.of("http://127.0.0.1:5173", "http://localhost:5173"));
 
-        // libera os métodos http q estou usando depois tem q adicionar o patch
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+        // libera os métodos http q estou usando
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH"));
 
         // permite que o frontend envie os headers dos jsons e tokens
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
