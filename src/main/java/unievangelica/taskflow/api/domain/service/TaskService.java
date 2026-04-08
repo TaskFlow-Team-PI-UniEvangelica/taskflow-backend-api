@@ -72,22 +72,29 @@ public class TaskService {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada"));
 
-        // operador tenário substituindo o if/else para decidir quando subistituir os campos no update
+        // operador tenário para decidir campos simples
         String novoTitulo = data.titulo() != null ? data.titulo() : taskLocal.getTitulo();
         String novaDescricao = data.descricao() != null ? data.descricao() : taskLocal.getDescricao();
-        LocalDate novoPrazo = data.prazo() != null ? LocalDate.parse(data.prazo()) : taskLocal.getPrazo();
-        TaskEntity.Prioridade novaPrioridade = data.prioridade() != null ? TaskEntity.Prioridade.valueOf(data.prioridade()) : taskLocal.getPrioridade();
-        TaskEntity.Status novoStatus = data.status() != null ? TaskEntity.Status.valueOf(data.status()) : taskLocal.getStatus();
 
-        // usando o jpql de update para atualizar os dados
-        taskRepository.updateTask(id, novoTitulo, novaDescricao, novoPrazo, novaPrioridade, novoStatus);
+        if (data.prazo() != null) {
+            taskLocal.setPrazo(LocalDate.parse(data.prazo()));
+        }
 
-        // definindo as variaveis para atualizar o objeto local para converter no DTO
-        taskLocal.setTitulo(novoTitulo);
-        taskLocal.setDescricao(novaDescricao);
-        taskLocal.setPrazo(novoPrazo);
-        taskLocal.setPrioridade(novaPrioridade);
-        taskLocal.setStatus(novoStatus);
+        if (data.prioridade() != null) {
+            taskLocal.setPrioridade(TaskEntity.Prioridade.valueOf(data.prioridade()));
+        }
+
+        if (data.status() != null) {
+            taskLocal.setStatus(TaskEntity.Status.valueOf(data.status()));
+        }
+
+        // atualização dos responsáveis pela task
+        if (data.idsResponsaveis() != null) {
+            // busca os novos usuários responsáveis com o mesmo método usado em criar task
+            List<UserEntity> novosResponsaveis = userRepository.userFindAllByIds(data.idsResponsaveis());
+            // sobrescreve a lista antiga pela nova
+            taskLocal.setResponsaveis(novosResponsaveis);
+        }
 
         return converterParaDTO(taskLocal);
     }
