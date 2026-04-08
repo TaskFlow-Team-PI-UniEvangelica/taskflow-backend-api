@@ -13,16 +13,19 @@ import unievangelica.taskflow.api.dto.response.TaskResponseDTO;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
+
 // service responsável pelas regras de negócio
 @Service
 public class TaskService {
     @Autowired // essa anotação injeta diretamente uma conexão com o banco de dados usando o repository sem precisar instaciar a classe aq
+    
     private TaskRepository taskRepository;
 
     @Autowired
     private UserRepository userRepository;
 
     // função que retorna todas as tasks por meio das entidades e transformando elas em responsesDTO
+
     public List<TaskResponseDTO> listarTasks(){
         List<TaskEntity> tasksDB = taskRepository.listAllTasks();
         return tasksDB.stream()
@@ -32,7 +35,7 @@ public class TaskService {
 
     // função que cria uma task refatorada para receber vários responsáveis
     @Transactional
-    public TaskResponseDTO criarTask(TaskRequestDTO data, UserEntity criadorLogado){
+    public TaskResponseDTO criarTask(TaskRequestDTO data, UserEntity criadorLogado) {
         // seta os valores que não necessitam de validação null
         TaskEntity novaTarefa = new TaskEntity();
         novaTarefa.setTitulo(data.titulo());
@@ -68,13 +71,13 @@ public class TaskService {
 
     // função para atualizar task
     @Transactional
-    public TaskResponseDTO atualizarTask(Long id, TaskRequestDTO data){
+    public TaskResponseDTO atualizarTask(Long id, TaskRequestDTO data) {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada"));
+                .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada com ID: " + id));
 
-        // operador tenário para decidir campos simples
-        String novoTitulo = data.titulo() != null ? data.titulo() : taskLocal.getTitulo();
-        String novaDescricao = data.descricao() != null ? data.descricao() : taskLocal.getDescricao();
+        // FIX: Aplicando os valores diretamente na entidade usando os setters
+        taskLocal.setTitulo(data.titulo() != null ? data.titulo() : taskLocal.getTitulo());
+        taskLocal.setDescricao(data.descricao() != null ? data.descricao() : taskLocal.getDescricao());
 
         if (data.prazo() != null) {
             taskLocal.setPrazo(LocalDate.parse(data.prazo()));
@@ -100,7 +103,7 @@ public class TaskService {
     }
 
     @Transactional
-    public void deletarTask(Long id){
+    public void deletarTask(Long id) {
         if (!taskRepository.taskExist(id)) {
             throw new IllegalArgumentException("Tarefa não encontrada");
         }
