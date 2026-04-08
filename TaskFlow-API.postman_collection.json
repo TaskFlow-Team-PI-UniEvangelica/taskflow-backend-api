@@ -427,7 +427,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MzM1OTl9.fKvRkDBtDtIlirgsKXYHXesTCDBdvYptnGjGrLUiYQY",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU2NzQxNTJ9.79jM3I8cORaADmCN5W7NjlZupdE0r7Pseh__2vyv3GM",
                   "type": "string"
                 }
               ]
@@ -449,14 +449,14 @@
           "response": []
         },
         {
-          "name": "Criar task (Admin)",
+          "name": "Criar task",
           "request": {
             "auth": {
               "type": "bearer",
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MzM1OTl9.fKvRkDBtDtIlirgsKXYHXesTCDBdvYptnGjGrLUiYQY",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU2NzQxNTJ9.79jM3I8cORaADmCN5W7NjlZupdE0r7Pseh__2vyv3GM",
                   "type": "string"
                 }
               ]
@@ -465,7 +465,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"titulo\": \"Task\",\n    \"idCriador\": 1\n}",
+              "raw": "{\n    \"titulo\": \"Task\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -484,7 +484,39 @@
               ]
             }
           },
-          "response": []
+          "response": [
+            {
+              "name": "Criar task completa",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"titulo\": \"Teste\",\n  \"descricao\": \"Teste\",\n  \"prazo\": \"2026-05-20\",\n  \"prioridade\": \"alta\",\n  \"idsResponsaveis\": [2]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://localhost:8080/task",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8080",
+                  "path": [
+                    "task"
+                  ]
+                }
+              },
+              "_postman_previewlanguage": null,
+              "header": null,
+              "cookie": [],
+              "body": null
+            }
+          ]
         },
         {
           "name": "Deletar task (Admin)",
@@ -524,7 +556,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MzM1OTl9.fKvRkDBtDtIlirgsKXYHXesTCDBdvYptnGjGrLUiYQY",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU2NzU0NDF9.Jskm7juvzXgcnFt4WHFkdDFA0Tn7639ypkp8g7CpXb0",
                   "type": "string"
                 }
               ]
@@ -533,7 +565,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"titulo\": \"teste\",\n    \"descricao\": \"teste\",\n    \"status\": \"pendente\",\n    \"prioridade\": \"alta\"\n}",
+              "raw": "{\n  \"titulo\": \"Teste put\",\n  \"descricao\": \"Teste put \",\n  \"status\": \"concluida\",\n  \"prazo\": \"2026-05-25\",\n  \"prioridade\": \"baixa\",\n  \"idsResponsaveis\": [2]\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -30,30 +30,36 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    // função que cria uma task
+    // função que cria uma task refatorada para receber vários responsáveis
     @Transactional
-    public TaskResponseDTO criarTask(TaskRequestDTO data){
-        UserEntity criador = userRepository.userFindById(data.idCriador())
-                .orElseThrow(() -> new IllegalArgumentException("Erro: Criador não encontrado"));
-
+    public TaskResponseDTO criarTask(TaskRequestDTO data, UserEntity criadorLogado){
         // seta os valores que não necessitam de validação null
         TaskEntity novaTarefa = new TaskEntity();
         novaTarefa.setTitulo(data.titulo());
         novaTarefa.setDescricao(data.descricao());
+
+        // criador sempre baseado no usuário logado
+        novaTarefa.setCriador(criadorLogado);
 
         // verificações que setam os valores caso sejam null para os valores padrão
         if (data.prazo() != null) {
             novaTarefa.setPrazo(LocalDate.parse(data.prazo()));
         }
 
-        if (data.prioridade() != null) {
-            novaTarefa.setPrioridade(TaskEntity.Prioridade.valueOf(data.prioridade()));
-        } else {
-            novaTarefa.setPrioridade(TaskEntity.Prioridade.media);
-        }
+        // operador tenário responsável por definir a prioridade média caso não seja preenchida
+        novaTarefa.setPrioridade(data.prioridade() != null ?
+                TaskEntity.Prioridade.valueOf(data.prioridade()) :
+                TaskEntity.Prioridade.media);
 
+        // toda task nova deve nascer como pendente e ser definida posteriormente
         novaTarefa.setStatus(TaskEntity.Status.pendente);
-        novaTarefa.setCriador(criador);
+
+        // se tiver responsáveis vincula eles
+        if (data.idsResponsaveis() != null && !data.idsResponsaveis().isEmpty()) {
+            // busca os usuários pelos ids da lista
+            List<UserEntity> responsaveis = userRepository.userFindAllByIds(data.idsResponsaveis());
+            novaTarefa.setResponsaveis(responsaveis);
+        }
 
         TaskEntity taskLocal = taskRepository.save(novaTarefa);
 
@@ -66,22 +72,29 @@ public class TaskService {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada"));
 
-        // operador tenário substituindo o if/else para decidir quando subistituir os campos no update
+        // operador tenário para decidir campos simples
         String novoTitulo = data.titulo() != null ? data.titulo() : taskLocal.getTitulo();
         String novaDescricao = data.descricao() != null ? data.descricao() : taskLocal.getDescricao();
-        LocalDate novoPrazo = data.prazo() != null ? LocalDate.parse(data.prazo()) : taskLocal.getPrazo();
-        TaskEntity.Prioridade novaPrioridade = data.prioridade() != null ? TaskEntity.Prioridade.valueOf(data.prioridade()) : taskLocal.getPrioridade();
-        TaskEntity.Status novoStatus = data.status() != null ? TaskEntity.Status.valueOf(data.status()) : taskLocal.getStatus();
 
-        // usando o jpql de update para atualizar os dados
-        taskRepository.updateTask(id, novoTitulo, novaDescricao, novoPrazo, novaPrioridade, novoStatus);
+        if (data.prazo() != null) {
+            taskLocal.setPrazo(LocalDate.parse(data.prazo()));
+        }
 
-        // definindo as variaveis para atualizar o objeto local para converter no DTO
-        taskLocal.setTitulo(novoTitulo);
-        taskLocal.setDescricao(novaDescricao);
-        taskLocal.setPrazo(novoPrazo);
-        taskLocal.setPrioridade(novaPrioridade);
-        taskLocal.setStatus(novoStatus);
+        if (data.prioridade() != null) {
+            taskLocal.setPrioridade(TaskEntity.Prioridade.valueOf(data.prioridade()));
+        }
+
+        if (data.status() != null) {
+            taskLocal.setStatus(TaskEntity.Status.valueOf(data.status()));
+        }
+
+        // atualização dos responsáveis pela task
+        if (data.idsResponsaveis() != null) {
+            // busca os novos usuários responsáveis com o mesmo método usado em criar task
+            List<UserEntity> novosResponsaveis = userRepository.userFindAllByIds(data.idsResponsaveis());
+            // sobrescreve a lista antiga pela nova
+            taskLocal.setResponsaveis(novosResponsaveis);
+        }
 
         return converterParaDTO(taskLocal);
     }
@@ -95,13 +108,19 @@ public class TaskService {
     }
 
     private TaskResponseDTO converterParaDTO(TaskEntity entidade){
+        // transfoma a lista de entidades de usuários em uma lista de strings com os nomes dos responsáveis
+        List<String> nomesResponsaveis = entidade.getResponsaveis().stream()
+                .map(UserEntity::getNome) // extrai o nome de cada usuário
+                .collect(Collectors.toList());
+
         return new TaskResponseDTO(
                 entidade.getId(),
                 entidade.getTitulo(),
                 entidade.getDescricao(),
                 entidade.getStatus().name(),
                 entidade.getPrioridade().name(),
-                entidade.getCriador().getNome()
+                entidade.getCriador().getNome(), // nome do criador
+                nomesResponsaveis // nome dos responsáveis
         );
     }
 }

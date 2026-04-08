@@ -6,6 +6,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Table( name = "tasks") // anotação pra apontar qual a tabela
 @Entity( name = "Task") // anotação nomeando a entidade
@@ -39,6 +41,16 @@ public class TaskEntity {
     @ManyToOne // falando o tipo de relacionamento da chave estrangeira no caso many to one
     @JoinColumn(name = "id_criador")
     private UserEntity criador;
+
+    // novo relacionamento N to N para os responsáveis das tasks
+    @ManyToMany
+    @JoinTable(
+            name = "task_responsibles",
+            joinColumns = @JoinColumn(name = "task_id"),
+            inverseJoinColumns = @JoinColumn(name = "user_id")
+    )
+
+    private List<UserEntity> responsaveis = new ArrayList<>();
 
     // lista com todos os valores presentes no enum
     public enum Status {
