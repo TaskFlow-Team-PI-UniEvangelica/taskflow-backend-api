@@ -31,6 +31,9 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
 
     @Query("SELECT u FROM User u")
     List<UserEntity> userFindAll();
+
+    @Query("SELECT u FROM User u WHERE u.id IN :ids")
+    List<UserEntity> userFindAllByIds(@Param("ids") List<Long> ids);
     
     // esses são os métodos modify nos update e delete para alterar apenas alguns campos do db assim
     // desacoplando a responsabilidade do JPA de sempre salvar uma entidade inteira ao fazer um update

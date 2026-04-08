@@ -1,4 +1,7 @@
 package unievangelica.taskflow.api.dto.request;
+
+import java.util.List;
+
 // armazena quais campos devem ser requisitados para alteração
 public record TaskRequestDTO(
         String titulo,
@@ -6,6 +9,6 @@ public record TaskRequestDTO(
         String status,
         String prioridade,
         String prazo,
-        Long idCriador
+        List<Long> idsResponsaveis
 ) {
 }

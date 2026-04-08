@@ -16,10 +16,15 @@ import java.util.Optional;
 // porem estamos utilizando consultas JPQL para acessar o banco de dados em métodos como update select e delete
 @Repository
 public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
-    @Query("SELECT t FROM Task t")
+    @Query("SELECT DISTINCT t FROM Task t " +
+            "JOIN FETCH t.criador " +
+            "LEFT JOIN FETCH t.responsaveis")
     List<TaskEntity> listAllTasks();
 
-    @Query("SELECT t FROM Task t WHERE t.id = :id")
+    @Query("SELECT t FROM Task t " +
+            "JOIN FETCH t.criador " +
+            "LEFT JOIN FETCH t.responsaveis " +
+            "WHERE t.id = :id")
     Optional<TaskEntity> findTaskById(@Param("id") Long id);
 
     @Query("SELECT COUNT(t) > 0 FROM Task t WHERE t.id = :id")

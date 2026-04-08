@@ -3,7 +3,9 @@ package unievangelica.taskflow.api.controllers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.service.TaskService;
 import unievangelica.taskflow.api.dto.request.TaskRequestDTO;
 import unievangelica.taskflow.api.dto.response.TaskResponseDTO;
@@ -22,9 +24,10 @@ public class TaskController {
         return ResponseEntity.ok(tasks);
     }
 
+    // permitir a rota a receber usuário logado ou seja puxar o id do criador pelo token do usuário
     @PostMapping
-    public ResponseEntity<TaskResponseDTO> criarTask(@RequestBody TaskRequestDTO data){
-       TaskResponseDTO novaTask = taskService.criarTask(data);
+    public ResponseEntity<TaskResponseDTO> criarTask(@RequestBody TaskRequestDTO data, @AuthenticationPrincipal UserEntity userLogado){
+       TaskResponseDTO novaTask = taskService.criarTask(data, userLogado);
        return ResponseEntity.status(HttpStatus.CREATED).body(novaTask);
     }
 
@@ -35,7 +38,7 @@ public class TaskController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<TaskResponseDTO> DeleteTask(@PathVariable Long id){
+    public ResponseEntity<Void> DeleteTask(@PathVariable Long id){
         taskService.deletarTask(id);
         return ResponseEntity.noContent().build();
     }

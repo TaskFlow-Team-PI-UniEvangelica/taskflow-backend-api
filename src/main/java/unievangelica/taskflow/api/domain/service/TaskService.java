@@ -30,30 +30,36 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    // função que cria uma task
+    // função que cria uma task refatorada para receber vários responsáveis
     @Transactional
-    public TaskResponseDTO criarTask(TaskRequestDTO data){
-        UserEntity criador = userRepository.userFindById(data.idCriador())
-                .orElseThrow(() -> new IllegalArgumentException("Erro: Criador não encontrado"));
-
+    public TaskResponseDTO criarTask(TaskRequestDTO data, UserEntity criadorLogado){
         // seta os valores que não necessitam de validação null
         TaskEntity novaTarefa = new TaskEntity();
         novaTarefa.setTitulo(data.titulo());
         novaTarefa.setDescricao(data.descricao());
+
+        // criador sempre baseado no usuário logado
+        novaTarefa.setCriador(criadorLogado);
 
         // verificações que setam os valores caso sejam null para os valores padrão
         if (data.prazo() != null) {
             novaTarefa.setPrazo(LocalDate.parse(data.prazo()));
         }
 
-        if (data.prioridade() != null) {
-            novaTarefa.setPrioridade(TaskEntity.Prioridade.valueOf(data.prioridade()));
-        } else {
-            novaTarefa.setPrioridade(TaskEntity.Prioridade.media);
-        }
+        // operador tenário responsável por definir a prioridade média caso não seja preenchida
+        novaTarefa.setPrioridade(data.prioridade() != null ?
+                TaskEntity.Prioridade.valueOf(data.prioridade()) :
+                TaskEntity.Prioridade.media);
 
+        // toda task nova deve nascer como pendente e ser definida posteriormente
         novaTarefa.setStatus(TaskEntity.Status.pendente);
-        novaTarefa.setCriador(criador);
+
+        // se tiver responsáveis vincula eles
+        if (data.idsResponsaveis() != null && !data.idsResponsaveis().isEmpty()) {
+            // busca os usuários pelos ids da lista
+            List<UserEntity> responsaveis = userRepository.userFindAllByIds(data.idsResponsaveis());
+            novaTarefa.setResponsaveis(responsaveis);
+        }
 
         TaskEntity taskLocal = taskRepository.save(novaTarefa);
 
@@ -95,13 +101,19 @@ public class TaskService {
     }
 
     private TaskResponseDTO converterParaDTO(TaskEntity entidade){
+        // transfoma a lista de entidades de usuários em uma lista de strings com os nomes dos responsáveis
+        List<String> nomesResponsaveis = entidade.getResponsaveis().stream()
+                .map(UserEntity::getNome) // extrai o nome de cada usuário
+                .collect(Collectors.toList());
+
         return new TaskResponseDTO(
                 entidade.getId(),
                 entidade.getTitulo(),
                 entidade.getDescricao(),
                 entidade.getStatus().name(),
                 entidade.getPrioridade().name(),
-                entidade.getCriador().getNome()
+                entidade.getCriador().getNome(), // nome do criador
+                nomesResponsaveis // nome dos responsáveis
         );
     }
 }
