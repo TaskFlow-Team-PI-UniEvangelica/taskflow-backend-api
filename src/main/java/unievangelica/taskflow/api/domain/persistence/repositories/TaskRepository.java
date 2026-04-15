@@ -43,6 +43,10 @@ public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
     );
 
     @Modifying
+    @Query("UPDATE Task t SET t.status = :status WHERE t.id = :id")
+    void updateTaskStatus(@Param("id") Long id, @Param("status") TaskEntity.Status status);
+
+    @Modifying
     @Query("DELETE FROM Task t WHERE t.id = :id")
     void deleteTask(@Param("id") Long id);
 }
