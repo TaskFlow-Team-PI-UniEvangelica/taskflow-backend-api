@@ -427,7 +427,7 @@
               "bearer": [
                 {
                   "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU2NzQxNTJ9.79jM3I8cORaADmCN5W7NjlZupdE0r7Pseh__2vyv3GM",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzYyODY2NjZ9.HmzN0jeZO7UE_cAE3_gLTRdM7V7yTKBHrahOiTXF76I",
                   "type": "string"
                 }
               ]
@@ -492,7 +492,7 @@
                 "header": [],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"titulo\": \"Teste\",\n  \"descricao\": \"Teste\",\n  \"prazo\": \"2026-05-20\",\n  \"prioridade\": \"alta\",\n  \"idsResponsaveis\": [2]\n}",
+                  "raw": "{\n  \"titulo\": \"Teste 2\",\n  \"descricao\": \"Teste\",\n  \"prazo\": \"2026-05-20\",\n  \"prioridade\": \"alta\",\n  \"idsResponsaveis\": [2]\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -517,36 +517,6 @@
               "body": null
             }
           ]
-        },
-        {
-          "name": "Deletar task (Admin)",
-          "request": {
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MDQ4MzV9.6CFfSM99pA4PjTxR-UpqtM_zlXNANRRXOWrj4v94vIU",
-                  "type": "string"
-                }
-              ]
-            },
-            "method": "DELETE",
-            "header": [],
-            "url": {
-              "raw": "http://localhost:8080/task/2",
-              "protocol": "http",
-              "host": [
-                "localhost"
-              ],
-              "port": "8080",
-              "path": [
-                "task",
-                "2"
-              ]
-            }
-          },
-          "response": []
         },
         {
           "name": "Alterar task",
@@ -582,6 +552,76 @@
               "path": [
                 "task",
                 "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Alterar status task",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzYyODY2NjZ9.HmzN0jeZO7UE_cAE3_gLTRdM7V7yTKBHrahOiTXF76I",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"concluida\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://localhost:8080/task/1/status",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "task",
+                "1",
+                "status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Deletar task (Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEkgVGFza0Zsb3ciLCJzdWIiOiJhZG1pbkBlbWFpbC5jb20iLCJleHAiOjE3NzU0MDQ4MzV9.6CFfSM99pA4PjTxR-UpqtM_zlXNANRRXOWrj4v94vIU",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8080/task/2",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8080",
+              "path": [
+                "task",
+                "2"
               ]
             }
           },
