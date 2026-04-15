@@ -103,7 +103,7 @@ Abaixo estão as rotas para testar via postman, a collection está na raiz do pr
     * `PATCH /user/me/password` - Essa rota permite o próprio usuário aualizar sua senha passando a antiga como parâmetro.
 
 * **Usuários (Somente admin, essas rotas serão consumidas posteriormente pelo frontend):**
-    * `GET /user` - Lista todos os usuário.
+    * `GET /user` - Lista todos os usuários (Essa rota não é para apenas admin).
     * `POST /user` - Adiciona um novo usuário.
     * `PUT /user/{id}` - Atualiza todos os dados de um usuário menos a senha.
     * `PATCH /user/{id}/password` - Permite atualizar a senha do usuário passando a antiga senha como paramêtro e salva em hash. (função deve ser alterada para funcionamento do admin posteriormente)
