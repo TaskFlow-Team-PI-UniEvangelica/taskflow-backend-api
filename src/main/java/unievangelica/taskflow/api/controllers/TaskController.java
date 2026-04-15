@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.service.TaskService;
 import unievangelica.taskflow.api.dto.request.TaskRequestDTO;
+import unievangelica.taskflow.api.dto.request.TaskStatusRequestDTO;
 import unievangelica.taskflow.api.dto.response.TaskResponseDTO;
 
 import java.util.List;
@@ -32,13 +33,20 @@ public class TaskController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TaskResponseDTO> UpdateTask(@PathVariable Long id, @RequestBody TaskRequestDTO data){
+    public ResponseEntity<TaskResponseDTO> updateTask(@PathVariable Long id, @RequestBody TaskRequestDTO data){
         TaskResponseDTO taskAtualizada = taskService.atualizarTask(id, data);
         return ResponseEntity.ok(taskAtualizada);
     }
 
+    // rota patch para atualizar status das task
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<Void> updateStatusTask(@PathVariable Long id, @RequestBody TaskStatusRequestDTO data){
+        taskService.atualizarStatusTask(id, data.status());
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> DeleteTask(@PathVariable Long id){
+    public ResponseEntity<Void> deleteTask(@PathVariable Long id){
         taskService.deletarTask(id);
         return ResponseEntity.noContent().build();
     }
