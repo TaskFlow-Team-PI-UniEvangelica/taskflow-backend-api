@@ -1,5 +1,6 @@
 package unievangelica.taskflow.api.test.unit.services;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -16,14 +17,13 @@ import unievangelica.taskflow.api.dto.response.TaskResponseDTO;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class TaskServiceTest {
 
-    // Mockando os métodos dos repositories usados no service
+    // mockando os métodos dos repositories usados no service
     @Mock
     private TaskRepository taskRepository;
 
@@ -36,8 +36,9 @@ public class TaskServiceTest {
 
     // anotação para dizer que é um teste
     @Test
+    @DisplayName("Deve listar tarefas corretamente e converter para o DTO")
     void testaListarTasksEConverterParaDTO() {
-        // arrange
+        // ARRANGE
 
         //mock de usuário necessário para atribuir um usuário criador a task
         UserEntity criador = new UserEntity();
@@ -54,25 +55,29 @@ public class TaskServiceTest {
 
         when(taskRepository.listAllTasks()).thenReturn(List.of(taskMock));
 
-        // act
+        // ACT
         List<TaskResponseDTO> resultado = taskService.listarTasks();
 
-        // assert
-        assertEquals(1, resultado.size());
-        assertEquals("Unit Test Service Titulo", resultado.get(0).titulo());
-        assertNull(resultado.get(0).descricao());
-        assertEquals("pendente", resultado.get(0).status());
-        assertEquals("media", resultado.get(0).prioridade());
-        assertNull(resultado.get(0).prazo());
-        assertEquals("UnitTestServiceUser", resultado.get(0).nomeCriador());
+        // ASSERT
+        assertThat(resultado).isNotNull().hasSize(1);
+
+        TaskResponseDTO taskRetornada = resultado.get(0);
+
+        assertThat(taskRetornada.titulo()).isEqualTo("Unit Test Service Titulo");
+        assertThat(taskRetornada.descricao()).isNull();
+        assertThat(taskRetornada.status()).isEqualTo("pendente");
+        assertThat(taskRetornada.prioridade()).isEqualTo("media");
+        assertThat(taskRetornada.prazo()).isNull();
+        assertThat(taskRetornada.nomeCriador()).isEqualTo("UnitTestServiceUser");
 
         // Verifica se o repositório foi chamado
         verify(taskRepository, times(1)).listAllTasks();
     }
 
     @Test
+    @DisplayName("Deve criar tarefa aplicando status e prioridade padrão")
     void testarCriarTaskSemDefinirAtributos() {
-        // arrange
+        // ARRANGE
 
         // mock usuário criador da tarefa
         UserEntity criador = new UserEntity();
@@ -89,28 +94,25 @@ public class TaskServiceTest {
         );
 
         // retornando a entidade mockada para ser salva pelo .save do método
-        TaskEntity taskSalvaMock = new TaskEntity();
-        taskSalvaMock.setId(10L);
-        taskSalvaMock.setTitulo("Unit Test Service Titulo");
-        taskSalvaMock.setDescricao("Unit Test Service Descrição");
-        taskSalvaMock.setStatus(TaskEntity.Status.pendente);
-        taskSalvaMock.setPrioridade(TaskEntity.Prioridade.media);
-        taskSalvaMock.setCriador(criador);
-        taskSalvaMock.setResponsaveis(List.of());
+        TaskEntity taskMock = new TaskEntity();
+        taskMock.setId(10L);
+        taskMock.setTitulo("Unit Test Service Titulo");
+        taskMock.setDescricao("Unit Test Service Descrição");
+        taskMock.setStatus(TaskEntity.Status.pendente);
+        taskMock.setPrioridade(TaskEntity.Prioridade.media);
+        taskMock.setCriador(criador);
+        taskMock.setResponsaveis(List.of());
 
         // retorna o mock após um entidade for salva
-        when(taskRepository.save(any(TaskEntity.class))).thenReturn(taskSalvaMock);
+        when(taskRepository.save(any(TaskEntity.class))).thenReturn(taskMock);
 
-
-        // act
+        // ACT
         TaskResponseDTO resultado = taskService.criarTask(requestDTO, criador);
 
-
-        // assert
-
-        assertEquals("Unit Test Service Titulo", resultado.titulo());
-        assertEquals("pendente", resultado.status());
-        assertEquals("UnitTestServiceUser", resultado.nomeCriador());
+        // ASSERT
+        assertThat(resultado.titulo()).isEqualTo("Unit Test Service Titulo");
+        assertThat(resultado.status()).isEqualTo("pendente");
+        assertThat(resultado.nomeCriador()).isEqualTo("UnitTestServiceUser");
 
         // captura a entidade que o service montou
         ArgumentCaptor<TaskEntity> captor = ArgumentCaptor.forClass(TaskEntity.class);
@@ -119,15 +121,67 @@ public class TaskServiceTest {
         TaskEntity entidadeCapturada = captor.getValue();
 
         // verifica as regras de negócio
-        assertEquals("Unit Test Service Titulo", entidadeCapturada.getTitulo());
-        assertEquals(criador, entidadeCapturada.getCriador());
+        assertThat(entidadeCapturada.getTitulo()).isEqualTo("Unit Test Service Titulo");
+        assertThat(entidadeCapturada.getCriador()).isEqualTo(criador);
+
         // verifica o if do null para retornar os valores padrão
-        assertEquals(TaskEntity.Prioridade.media, entidadeCapturada.getPrioridade());
-        assertEquals(TaskEntity.Status.pendente, entidadeCapturada.getStatus());
-        assertNull(entidadeCapturada.getPrazo());
+        assertThat(entidadeCapturada.getPrioridade()).isEqualTo(TaskEntity.Prioridade.media);
+        assertThat(entidadeCapturada.getStatus()).isEqualTo(TaskEntity.Status.pendente);
+        assertThat(entidadeCapturada.getPrazo()).isNull();
 
         // garante que user repository não seja chamado já que não foi passado os responsáveis
         verify(userRepository, never()).userFindAllByIds(anyList());
     }
 
+    @Test
+    @DisplayName("Deve buscar e vincular responsáveis quando a lista de IDs for informada")
+    void testarCriarTaskEBuscarResponsaveis() {
+        // ARRANGE
+
+        // mocks de usuários
+        UserEntity criador = new UserEntity();
+        criador.setNome("UnitTestServiceUser");
+
+        UserEntity dev1 = new UserEntity(); dev1.setNome("UnitTestServiceUser1");
+        UserEntity dev2 = new UserEntity(); dev2.setNome("UnitTestServiceUser2");
+
+        List<Long> idsResponsaveis = List.of(2L, 3L);
+        TaskRequestDTO requestDTO = new TaskRequestDTO("Unit Test Service Titulo", "Unit Test Service Descrição", null, null, null, idsResponsaveis);
+
+        // mock lê o retorno do repository
+        when(userRepository.userFindAllByIds(idsResponsaveis)).thenReturn(List.of(dev1, dev2));
+
+        // mock para garantir o retorno correto do DTO após salvar
+        TaskEntity taskMock = new TaskEntity();
+        taskMock.setId(10L);
+        taskMock.setTitulo("Unit Test Service Titulo");
+        taskMock.setStatus(TaskEntity.Status.pendente);
+        taskMock.setPrioridade(TaskEntity.Prioridade.media);
+        taskMock.setCriador(criador);
+        taskMock.setResponsaveis(List.of(dev1, dev2)); // já devolve com a lista preenchida
+
+        when(taskRepository.save(any(TaskEntity.class))).thenReturn(taskMock);
+
+        // ACT
+        TaskResponseDTO resultado = taskService.criarTask(requestDTO, criador);
+
+        // ASSERT
+        verify(userRepository, times(1)).userFindAllByIds(idsResponsaveis);
+
+        // captura a entidade para verificar a vinculação
+        ArgumentCaptor<TaskEntity> captor = ArgumentCaptor.forClass(TaskEntity.class);
+        verify(taskRepository).save(captor.capture());
+
+        // verifica a vinculação dos responsáveis na entidade antes de salvar
+        assertThat(captor.getValue().getResponsaveis())
+                .isNotNull()
+                .hasSize(2)
+                .extracting(UserEntity::getNome)
+                .containsExactlyInAnyOrder("UnitTestServiceUser1", "UnitTestServiceUser2");
+
+        // verifica se os nomes vieram do dto
+        assertThat(resultado.nomesResponsaveis())
+                .isNotEmpty()
+                .contains("UnitTestServiceUser1", "UnitTestServiceUser2");
+    }
 }
