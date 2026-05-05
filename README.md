@@ -98,12 +98,20 @@ Abaixo estão as rotas para testar via postman, a collection está na raiz do pr
     * `POST /auth/login` - Autentica o usuário e retorna o token JWT.
     * `POST /auth/register` - Cria uma nova conta de usuário.
 
+* **Usuários Me (Funciona com base no Token do usuário):**
+    * `GET /user/me` - Lista o perfil do usuário logado.
+    * `PATCH /user/me/password` - Essa rota permite o próprio usuário aualizar sua senha passando a antiga como parâmetro.
+
+* **Usuários (Somente admin, essas rotas serão consumidas posteriormente pelo frontend):**
+    * `GET /user` - Lista todos os usuários (Essa rota não é para apenas admin).
+    * `POST /user` - Adiciona um novo usuário.
+    * `PUT /user/{id}` - Atualiza todos os dados de um usuário menos a senha.
+    * `PATCH /user/{id}/password` - Permite atualizar a senha do usuário passando a antiga senha como paramêtro e salva em hash. (função deve ser alterada para funcionamento do admin posteriormente)
+    * `DELETE /task/{id}` - Exclui usuário pelo id.
+
 * **Tarefas (Requer token obtido pela rota de login):**
     * `GET /task` - Lista as tarefas de todos os usuário autenticado.
     * `POST /task` - Cria uma nova tarefa (apenas admin).
     * `PUT /task/{id}` - Atualiza os dados de uma tarefa.
+    * `PATCH /task/{id}/status` - Atualiza os dados de status de uma tarefa, usado para o Kanban do Frontend.
     * `DELETE /task/{id}` - Exclui uma tarefa (apenas admin).
-
-* **Usuários (Somente admin, rota desatualizada pois não salva usuário com senha hash):**
-  * `GET /user` - Lista todos os usuário.
-  * `POST /user` - Adiciona um novo usuário.

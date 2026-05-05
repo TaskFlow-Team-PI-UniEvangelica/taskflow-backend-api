@@ -102,6 +102,19 @@ public class TaskService {
         return converterParaDTO(taskLocal);
     }
 
+    // método que será usado pela rota Patch para atualizar apenas o status
+    @Transactional
+    public void atualizarStatusTask(Long id, String novoStatus) {
+        // verifica se a tarefa existe usando método já presente no repository
+        if (!taskRepository.taskExist(id)) {
+            throw new IllegalArgumentException("Tarefa não encontrada");
+        }
+
+        // Converte a string para o Enum e dispara e chama o método de UPDATE do repository
+        TaskEntity.Status statusEnum = TaskEntity.Status.valueOf(novoStatus.toLowerCase());
+        taskRepository.updateTaskStatus(id, statusEnum);
+    }
+
     @Transactional
     public void deletarTask(Long id) {
         if (!taskRepository.taskExist(id)) {
