@@ -97,7 +97,7 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    ```bash
    cd taskflow-backend-api
    ```
-
+   
 3. **Garantia de acesso:**
    Garanta que o Docker tenha acesso de administrador na máquina para não ser necessário usar sudo.
 
@@ -121,7 +121,7 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    ```bash
    make terminal-api
    ```
-   #### Acessar terminal do Banco de Dados do container:
+    #### Acessar terminal do Banco de Dados do container:
    ```bash
    make terminal-db
    ```
@@ -144,7 +144,7 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    Garanta que o Docker tenha acesso de administrador na máquina.
 
 4. **Env configurado:**
-   Tenha o arquivo .env devidamente configurado como nos tópicos anteriores.
+   Tenha o arquivo .env devidamente configurado como nos tópicos anteriores. 
 
 5. **Comandos Docker para execução e gerência da api e banco de dados:**
    #### Subir container:
@@ -163,7 +163,7 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    ```cmd
    docker exec -it taskflow_api bash
    ```
-   #### Acessar terminal do Banco de Dados do container:
+    #### Acessar terminal do Banco de Dados do container:
    ```bash
    docker exec -it taskflow_db psql -U root -d taskflow_db
    ```
