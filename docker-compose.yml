@@ -8,6 +8,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5433:5432"
+    volumes:
+      - taskflow_pgdata:/var/lib/postgresql/data # volume para persistencia de dados
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME:-taskflow_db}"]
       interval: 5s
@@ -28,3 +30,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
+
+volumes:
+  taskflow_pgdata:

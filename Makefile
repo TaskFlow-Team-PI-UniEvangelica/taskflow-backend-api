@@ -12,14 +12,14 @@ run:
 down:
 	docker compose down
 
+# desliga todos os services incluindo o volume do db
+down-db:
+	docker compose down -v
+
 # logs da api
 logs:
 	docker compose logs -f api
 
 # acessa o terminal da api
-terminal-api:
+terminal:
 	docker exec -it taskflow_api bash
-
-# acessa o terminal do banco postgres
-terminal-db:
-	docker exec -it taskflow_db psql -U root -d taskflow_db

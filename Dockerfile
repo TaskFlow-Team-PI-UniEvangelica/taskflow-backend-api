@@ -4,8 +4,7 @@ WORKDIR /app
 COPY . .
 RUN mvn clean package -DskipTests
 
-# Runtime com temurin 21
-
+# runtime com temurin 21
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 
