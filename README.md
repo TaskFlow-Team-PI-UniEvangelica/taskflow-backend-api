@@ -113,18 +113,19 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    ```bash
    make down
    ```
+   #### Derrubar container e volume do banco de dados:
+   ```bash
+   make down-db
+   ```
    #### Acessar logs do container:
    ```bash
    make logs
    ```
    #### Acessar terminal da API do container:
    ```bash
-   make terminal-api
+   make terminal
    ```
-    #### Acessar terminal do Banco de Dados do container:
-   ```bash
-   make terminal-db
-   ```
+   Para sair digite ``` exit ``` no terminal.
 
 # Como executar a aplicação via Docker (Windows)
 Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisitos instalados na sua máquina:
@@ -155,6 +156,10 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    ```cmd
    docker compose down
    ```
+   #### Derrubar container e volume do banco de dados:
+   ```cmd
+   docker compose down -v
+   ```
    #### Acessar logs do container:
    ```cmd
    docker compose logs -f api
@@ -163,10 +168,7 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    ```cmd
    docker exec -it taskflow_api bash
    ```
-    #### Acessar terminal do Banco de Dados do container:
-   ```bash
-   docker exec -it taskflow_db psql -U root -d taskflow_db
-   ```
+   Para sair digite ``` exit ``` no terminal.
 
 # Como executar a aplicação manualmente
 
