@@ -1,6 +1,7 @@
 package unievangelica.taskflow.api.infra.security;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -24,6 +25,10 @@ import java.util.List;
 public class SpringSecurityConfig {
     @Autowired
     private SecurityFilter securityfilter;
+
+    // injeção das urls do frontend
+    @Value("${cors.allowed.origins}")
+    private List<String> frontendUrls;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
@@ -54,7 +59,7 @@ public class SpringSecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // define a url do frontend
-        configuration.setAllowedOrigins(List.of("http://127.0.0.1:5173", "http://localhost:5173", "http://localhost"));
+        configuration.setAllowedOrigins(frontendUrls);
 
         // libera os métodos http q estou usando
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH"));
