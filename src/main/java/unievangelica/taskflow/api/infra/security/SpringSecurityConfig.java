@@ -27,8 +27,11 @@ public class SpringSecurityConfig {
     private SecurityFilter securityfilter;
 
     // injeção das urls do frontend
-    @Value("${cors.allowed.origins}")
-    private List<String> frontendUrls;
+    @Value("${FRONTEND_URL:http://localhost}")
+    private String frontendUrl;
+
+    @Value("${FRONTEND_URL_VITE:http://localhost:5173}")
+    private String frontendUrlVite;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
@@ -60,8 +63,8 @@ public class SpringSecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // define a url do frontend
-        configuration.setAllowedOrigins(frontendUrls);
+        // define as urls do frontend
+        configuration.setAllowedOrigins(List.of(frontendUrl, frontendUrlVite));
 
         // libera os métodos http q estou usando
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
