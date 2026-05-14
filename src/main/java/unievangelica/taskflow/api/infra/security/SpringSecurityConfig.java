@@ -37,6 +37,8 @@ public class SpringSecurityConfig {
                 .csrf(csrf -> csrf.disable()) // desabilita o csrf para usar os tokens jwt
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // transforma a sessão em stateless para guardar e validar tokens
                 .authorizeHttpRequests(authorize -> authorize
+                        // rota de verificação options
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // rotas com os respectivos usuários que possuem acesso a elas
                         .requestMatchers("/error").permitAll() // liberando acesso a rota de erro
                         .requestMatchers(HttpMethod.POST, "/auth/register").permitAll()
@@ -62,7 +64,7 @@ public class SpringSecurityConfig {
         configuration.setAllowedOrigins(frontendUrls);
 
         // libera os métodos http q estou usando
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
 
         // permite que o frontend envie os headers dos jsons e tokens
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
