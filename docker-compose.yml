@@ -6,8 +6,6 @@ services:
       POSTGRES_DB: ${DB_NAME:-taskflow_db}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      FRONTEND_URL: ${FRONTEND_URL}
-      FRONTEND_URL_VITE: ${FRONTEND_URL_VITE}
     ports:
       - "5433:5432"
     volumes:
@@ -29,6 +27,8 @@ services:
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      FRONTEND_URL: ${FRONTEND_URL}
+      FRONTEND_URL_VITE: ${FRONTEND_URL_VITE}
     depends_on:
       db:
         condition: service_healthy

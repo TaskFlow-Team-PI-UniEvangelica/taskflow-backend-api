@@ -27,10 +27,10 @@ public class SpringSecurityConfig {
     private SecurityFilter securityfilter;
 
     // injeção das urls do frontend
-    @Value("${FRONTEND_URL:http://localhost}")
+    @Value("${api.cors.frontend.url}")
     private String frontendUrl;
 
-    @Value("${FRONTEND_URL_VITE:http://localhost:5173}")
+    @Value("${api.cors.frontend.url.vite}")
     private String frontendUrlVite;
 
     @Bean
@@ -69,8 +69,8 @@ public class SpringSecurityConfig {
         // libera os métodos http q estou usando
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
 
-        // permite que o frontend envie os headers dos jsons e tokens
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // permite que o frontend envie todos os headers
+        configuration.setAllowedHeaders(List.of("*"));
 
         // permite enviar as credenciais
         configuration.setAllowCredentials(true);
