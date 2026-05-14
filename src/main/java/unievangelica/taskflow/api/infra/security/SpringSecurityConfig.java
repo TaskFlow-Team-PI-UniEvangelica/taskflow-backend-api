@@ -1,6 +1,7 @@
 package unievangelica.taskflow.api.infra.security;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -25,6 +26,13 @@ public class SpringSecurityConfig {
     @Autowired
     private SecurityFilter securityfilter;
 
+    // injeção das urls do frontend
+    @Value("${api.cors.frontend.url}")
+    private String frontendUrl;
+
+    @Value("${api.cors.frontend.url.vite}")
+    private String frontendUrlVite;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         return httpSecurity
@@ -32,6 +40,8 @@ public class SpringSecurityConfig {
                 .csrf(csrf -> csrf.disable()) // desabilita o csrf para usar os tokens jwt
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // transforma a sessão em stateless para guardar e validar tokens
                 .authorizeHttpRequests(authorize -> authorize
+                        // rota de verificação options
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // rotas com os respectivos usuários que possuem acesso a elas
                         .requestMatchers("/error").permitAll() // liberando acesso a rota de erro
                         .requestMatchers(HttpMethod.POST, "/auth/register").permitAll()
@@ -53,14 +63,14 @@ public class SpringSecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // define a url do frontend
-        configuration.setAllowedOrigins(List.of("http://127.0.0.1:5173", "http://localhost:5173", "http://localhost"));
+        // define as urls do frontend
+        configuration.setAllowedOrigins(List.of(frontendUrl, frontendUrlVite));
 
         // libera os métodos http q estou usando
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
 
-        // permite que o frontend envie os headers dos jsons e tokens
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        // permite que o frontend envie todos os headers
+        configuration.setAllowedHeaders(List.of("*"));
 
         // permite enviar as credenciais
         configuration.setAllowCredentials(true);
