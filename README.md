@@ -1,6 +1,11 @@
 # Taskflow API
 API desenvolvida com foco no gerenciado de usuários e tarefas, utilizando Spring Boot e Java 21, para a execução do Projeto Integrativo e Projeto de Conclusão de Curso da Universidade Evangélica de Ánapolis.
 
+- URL de deploy de testes, cole no navegador para acessar a aplicação sem executar localmente:
+    ```
+    http://124.198.128.120/
+    ```
+
 ## Dependências e Tecnologias Usadas
 * **Linguagem:** Java 21+
 * **Framework:** Spring Boot
