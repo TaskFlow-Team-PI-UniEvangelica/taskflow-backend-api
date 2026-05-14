@@ -52,21 +52,25 @@ taskflow-backend-api/
 ```
 
 # Configuração do .env para execução via Docker
-Configuração das variáveis de ambiente pelo arquivo (.env), crie um arquivo chamado .env na raiz do projeto, cole as informações abaixo no arquivo e adicione as suas configurações do banco de dados de acordo com o exemplo.
+Configuração das variáveis de ambiente pelo arquivo (.env), crie um arquivo chamado .env na raiz do projeto, cole as informações abaixo no arquivo e adicione as suas configurações do banco de dados e urls de acordo com o exemplo.
 ```
-DB_URL=jdbc:postgresql://localhost:5433/nome_do_seu_banco
+DB_URL=jdbc:postgresql://db:5433/nome_do_seu_banco
 DB_USER=seu_usuario
 DB_PASSWORD=sua_senha
 JWT_SECRET=sua_assinatura_token
+FRONTEND_URL=http://localhost
+FRONTEND_URL_VITE=http://localhost:5173
 ```
 
 # Configuração do .env para execução manual
-Configuração das variáveis de ambiente pelo arquivo (.env), crie um arquivo chamado .env na raiz do projeto, cole as informações abaixo no arquivo e adicione as suas configurações locais.
+Configuração das variáveis de ambiente pelo arquivo (.env), crie um arquivo chamado .env na raiz do projeto, cole as informações abaixo no arquivo e adicione as suas configurações de banco de dados e urls do frontend.
 ```
 DB_URL=jdbc:postgresql://localhost:5432/nome_do_seu_banco
 DB_USER=seu_usuario
 DB_PASSWORD=sua_senha
 JWT_SECRET=sua_assinatura_token
+FRONTEND_URL=http://localhost
+FRONTEND_URL_VITE=http://localhost:5173
 ```
 Aponte o .env como variáveis de ambiente usando o caminho do arquivo do .env no inteliJ conforme o vídeo:
 https://drive.google.com/file/d/1DN_R-e5uknsZUgw9rTt7TvpMb6NjcUoc/view?usp=sharing
@@ -79,6 +83,8 @@ spring.datasource.url=postgresql://localhost:5432/nome_do_seu_banco
 spring.datasource.username=seu_usuario
 spring.datasource.password=sua_senha
 api.security.token.secret=${JWT_SECRET:sua_assinatura_token}
+api.cors.frontend.url=${FRONTEND_URL:http://localhost}
+api.cors.frontend.url.vite=${FRONTEND_URL_VITE:http://localhost:5173
 ```
 Localizado em `src/main/resources/application.properties`.
 
@@ -116,6 +122,14 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    #### Derrubar container e volume do banco de dados:
    ```bash
    make down-db
+   ```
+   #### Derruba o container e apaga as imagens, mantendo o volume:
+   ```bash
+   make clean
+   ```
+   #### Derruba o container apaga volume e imagens:
+   ```bash
+   make clean-db
    ```
    #### Acessar logs do container:
    ```bash
@@ -160,6 +174,14 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    ```cmd
    docker compose down -v
    ```
+   #### Derruba o container e apaga as imagens, mantendo o volume:
+   ```cmd
+   docker compose down --rmi all
+   ```
+   #### Derruba o container apaga volume e imagens:
+   ```cmd
+   docker compose down -v --rmi all
+   ```
    #### Acessar logs do container:
    ```cmd
    docker compose logs -f api
@@ -192,7 +214,7 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
    > **Nota:** Não é necessário criar as tabelas manualmente. O **Flyway** cuida das migrations das tabelas.
 
 4. **Configure as Variáveis de Ambiente:**
-   Siga as instruções da seção `Configuração do .env` acima para garantir que a aplicação consiga se conectar ao banco de dados.
+   Siga as instruções da seção `Configuração do .env` acima para garantir que a aplicação consiga se conectar ao banco de dados e ao frontend.
 
 5. **Inicie a aplicação:**
     * **Via Terminal (Linux):**
