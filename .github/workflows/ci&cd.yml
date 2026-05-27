@@ -62,7 +62,7 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd /repositorios/taskflow-backend-api
+            cd /root/repositorios/taskflow-backend-api
             
             git pull origin main
             
