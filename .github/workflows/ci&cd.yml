@@ -2,15 +2,15 @@ name: CI / Automated Tests
 
 on:
   push:
-    branches: [ "inicio 12", "main", "master" ]
+    branches: [ "main", "master"]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: [ "main", "master"]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
-    # Subindo um container PostgreSQL para os testes integrados, caso precisem de banco.
+    # subindo um container postgres para os testes integrados
     services:
       postgres:
         image: postgres:15
@@ -46,11 +46,11 @@ jobs:
         DB_URL: jdbc:postgresql://localhost:5432/taskflow_db
         DB_USER: root
         DB_PASSWORD: password
-        JWT_SECRET: chavesecretaparaostestes
+        JWT_SECRET: chaveparatestes
 
   deploy:
     name: Deploy na Máquina em Nuvem
-    needs: build-and-test # Isso garante que o deploy SÓ ACONTEÇA se os testes passarem!
+    needs: build-and-test #deploy so acontece se os testes passarem
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' # Executa deploy apenas na branch principal
 
@@ -62,12 +62,9 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            # 1. Navega até a pasta do projeto no servidor (Altere este caminho se necessário)
-            cd /caminho/para/sua/pasta/taskflow-backend-api
+            cd /repositorios/taskflow-backend-api
             
-            # 2. Puxa as últimas alterações do GitHub
             git pull origin main
             
-            # 3. Recria os containers Docker com o código novo (sem derrubar o banco, se configurado corretamente)
-            docker-compose up -d --build api
+            make run
 
