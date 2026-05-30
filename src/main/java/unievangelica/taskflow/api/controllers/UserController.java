@@ -46,13 +46,13 @@ public class UserController {
 
     @PatchMapping("/{id}/password")
     public ResponseEntity<Void> atualizarSenha(@PathVariable Long id, @RequestBody PasswordChangeRequestDTO data) {
-        userService.autualizarSenha(id, data);
+        userService.atualizarSenha(id, data);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/me/password")
     public ResponseEntity<Void> atualizarSenhaProprioUsuario(@AuthenticationPrincipal UserEntity userLogado, @RequestBody PasswordChangeRequestDTO data) {
-        userService.autualizarSenha(userLogado.getId(), data);
+        userService.atualizarSenha(userLogado.getId(), data);
         return  ResponseEntity.noContent().build();
     }
 

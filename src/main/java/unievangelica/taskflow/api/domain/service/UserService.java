@@ -76,7 +76,7 @@ public class UserService {
     }
 
     @Transactional
-    public void autualizarSenha(Long id, PasswordChangeRequestDTO data){
+    public void atualizarSenha(Long id, PasswordChangeRequestDTO data){
         UserEntity usuario = userRepository.userFindById(id)
                 .orElseThrow(()-> new IllegalArgumentException("Usuário não encontrado")); // procura usuário pelo id
 
