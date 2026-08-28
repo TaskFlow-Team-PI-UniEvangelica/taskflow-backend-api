@@ -1,19 +1,13 @@
 package unievangelica.taskflow.api.infra.security;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -33,25 +27,50 @@ public class SpringSecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         return httpSecurity
-                .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ativa o cors nessa bagaça para usar o método novo la embaixo
-                .csrf(csrf -> csrf.disable()) // desabilita o csrf para usar os tokens jwt
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // transforma a sessão em stateless para guardar e validar tokens
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        // rota de verificação options
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        // rotas com os respectivos usuários que possuem acesso a elas
-                        .requestMatchers("/error").permitAll() // liberando acesso a rota de erro
-                        .requestMatchers(HttpMethod.POST, "/auth/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.PATCH, "/user/me/password").authenticated()
+                        .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.DELETE, "/task/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/user/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT, "/user/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/user/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/user/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
+                // injeta o servidor do keycloack como authenticador do backend
+                .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                )
                 .build();
+    }
+
+    @Bean
+    public org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter jwtAuthenticationConverter() {
+        org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter grantedAuthoritiesConverter =
+                new org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter();
+
+        // avisa ao spring que as autoridades não terão o prefixo SCOPE_ padrão, e sim o prefixo ROLE_
+        grantedAuthoritiesConverter.setAuthorityPrefix("ROLE_");
+        grantedAuthoritiesConverter.setAuthoritiesClaimName("roles");
+
+        org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter jwtAuthenticationConverter =
+                new org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter();
+
+        jwtAuthenticationConverter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            java.util.Collection<org.springframework.security.core.GrantedAuthority> authorities = grantedAuthoritiesConverter.convert(jwt);
+
+            // extração manual da estrutura realm_access do keycloak
+            java.util.Map<String, Object> realmAccess = jwt.getClaim("realm_access");
+            if (realmAccess != null && realmAccess.containsKey("roles")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<String> roles = (java.util.List<String>) realmAccess.get("roles");
+                for (String role : roles) {
+                    authorities.add(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
+                }
+            }
+            return authorities;
+        });
+
+        return jwtAuthenticationConverter;
     }
 
     // configurção do cors
@@ -74,16 +93,5 @@ public class SpringSecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration); // aplicando as configs do cors para todas as rotas
         return source;
-    }
-
-    @Bean
-    public AuthenticationManager autenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
-    }
-
-    // método auxilizar para transformar a senha do usuário em hash
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
     }
 }
