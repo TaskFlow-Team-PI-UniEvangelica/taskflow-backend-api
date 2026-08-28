@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
-import unievangelica.taskflow.api.dto.request.PasswordChangeRequestDTO;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 

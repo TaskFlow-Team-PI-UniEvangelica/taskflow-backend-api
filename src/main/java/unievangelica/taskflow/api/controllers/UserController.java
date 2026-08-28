@@ -7,7 +7,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.service.UserService;
-import unievangelica.taskflow.api.dto.request.PasswordChangeRequestDTO;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
