@@ -50,6 +50,10 @@ public class TaskEntity {
             inverseJoinColumns = @JoinColumn(name = "user_id")
     )
 
+    @ManyToOne
+    @JoinColumn(name = "organization_id")
+    private OrganizationEntity organization;
+
     private List<UserEntity> responsaveis = new ArrayList<>();
 
     // lista com todos os valores presentes no enum
