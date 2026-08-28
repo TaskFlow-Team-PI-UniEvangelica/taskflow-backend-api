@@ -19,9 +19,6 @@ public class UserService {
     @Autowired
     private UserRepository userRepository;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
     @Transactional
     public UserResponseDTO criarUsuario(UserRequestDTO data){
         if (userRepository.userExistsByEmail(data.email())){
@@ -31,7 +28,6 @@ public class UserService {
         UserEntity novoUsuario = new UserEntity();
         novoUsuario.setNome(data.nome());
         novoUsuario.setEmail(data.email());
-        novoUsuario.setSenha(passwordEncoder.encode(data.senha())); // usando a rota de criar usuário para criptografar a senha no salvamento como a rota de auth
 
         if (data.cargo() != null) {
             novoUsuario.setCargo(UserEntity.Cargo.valueOf(data.cargo()));
@@ -73,22 +69,6 @@ public class UserService {
         userLocal.setEmail(novoEmail);
 
         return converterParaDTO(userLocal);
-    }
-
-    @Transactional
-    public void atualizarSenha(Long id, PasswordChangeRequestDTO data){
-        UserEntity usuario = userRepository.userFindById(id)
-                .orElseThrow(()-> new IllegalArgumentException("Usuário não encontrado")); // procura usuário pelo id
-
-        if (!passwordEncoder.matches(data.senhaAtual(), usuario.getSenha())) { // se o hash da senha atual não bater gera uma exception
-            throw new IllegalArgumentException("Senha atual esta incorreta, tente novamente");
-        }
-
-        // caso os hash sejam iguais o if libera para atualizar a senha encriptar e salvar a senha nova
-        String novaSenhaEncriptada = passwordEncoder.encode(data.novaSenha());
-        usuario.setSenha(novaSenhaEncriptada);
-
-        userRepository.updateUserPassword(id, novaSenhaEncriptada);
     }
 
     @Transactional
