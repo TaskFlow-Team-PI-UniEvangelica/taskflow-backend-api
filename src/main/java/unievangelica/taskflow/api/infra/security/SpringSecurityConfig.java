@@ -23,9 +23,6 @@ import java.util.List;
 @Configuration // diz que essa classe é uma classe de configuração
 @EnableWebSecurity // habilita as configs do spring security dentro da classe
 public class SpringSecurityConfig {
-    @Autowired
-    private SecurityFilter securityfilter;
-
     // injeção das urls do frontend
     @Value("${api.cors.frontend.url}")
     private String frontendUrl;
@@ -54,7 +51,6 @@ public class SpringSecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, "/user/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(securityfilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 

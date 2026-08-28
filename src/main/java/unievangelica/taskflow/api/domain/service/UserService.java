@@ -29,12 +29,6 @@ public class UserService {
         novoUsuario.setNome(data.nome());
         novoUsuario.setEmail(data.email());
 
-        if (data.cargo() != null) {
-            novoUsuario.setCargo(UserEntity.Cargo.valueOf(data.cargo()));
-        } else {
-            novoUsuario.setCargo(UserEntity.Cargo.funcionario);
-        }
-
         UserEntity userLocal = userRepository.save(novoUsuario);
 
         return converterParaDTO(userLocal);
@@ -84,7 +78,7 @@ public class UserService {
                 entidade.getId(),
                 entidade.getNome(),
                 entidade.getEmail(),
-                entidade.getCargo().name()
+                "MEMBER"
         );
     }
 }
