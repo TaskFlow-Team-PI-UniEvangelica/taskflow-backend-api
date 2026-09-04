@@ -1,6 +1,5 @@
 package unievangelica.taskflow.api.domain.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import unievangelica.taskflow.api.domain.persistence.entities.TaskEntity;
@@ -14,17 +13,16 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 
-// service responsável pelas regras de negócio
 @Service
 public class TaskService {
-    @Autowired // essa anotação injeta diretamente uma conexão com o banco de dados usando o repository sem precisar instaciar a classe aq
     
-    private TaskRepository taskRepository;
+    private final TaskRepository taskRepository;
+    private final UserRepository userRepository;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    // função que retorna todas as tasks por meio das entidades e transformando elas em responsesDTO
+    public TaskService(TaskRepository taskRepository, UserRepository userRepository) {
+        this.taskRepository = taskRepository;
+        this.userRepository = userRepository;
+    }
 
     public List<TaskResponseDTO> listarTasks(){
         List<TaskEntity> tasksDB = taskRepository.listAllTasks();
@@ -33,33 +31,24 @@ public class TaskService {
                 .collect(Collectors.toList());
     }
 
-    // função que cria uma task refatorada para receber vários responsáveis
     @Transactional
     public TaskResponseDTO criarTask(TaskRequestDTO data, UserEntity criadorLogado) {
-        // seta os valores que não necessitam de validação null
         TaskEntity novaTarefa = new TaskEntity();
         novaTarefa.setTitulo(data.titulo());
         novaTarefa.setDescricao(data.descricao());
-
-        // criador sempre baseado no usuário logado
         novaTarefa.setCriador(criadorLogado);
 
-        // verificações que setam os valores caso sejam null para os valores padrão
         if (data.prazo() != null) {
             novaTarefa.setPrazo(LocalDate.parse(data.prazo()));
         }
 
-        // operador tenário responsável por definir a prioridade média caso não seja preenchida
         novaTarefa.setPrioridade(data.prioridade() != null ?
                 TaskEntity.Prioridade.valueOf(data.prioridade()) :
                 TaskEntity.Prioridade.media);
 
-        // toda task nova deve nascer como pendente e ser definida posteriormente
         novaTarefa.setStatus(TaskEntity.Status.pendente);
 
-        // se tiver responsáveis vincula eles
         if (data.idsResponsaveis() != null && !data.idsResponsaveis().isEmpty()) {
-            // busca os usuários pelos ids da lista
             List<UserEntity> responsaveis = userRepository.userFindAllByIds(data.idsResponsaveis());
             novaTarefa.setResponsaveis(responsaveis);
         }
@@ -69,13 +58,11 @@ public class TaskService {
         return converterParaDTO(taskLocal);
     }
 
-    // função para atualizar task
     @Transactional
     public TaskResponseDTO atualizarTask(Long id, TaskRequestDTO data) {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada com ID: " + id));
 
-        // FIX: Aplicando os valores diretamente na entidade usando os setters
         taskLocal.setTitulo(data.titulo() != null ? data.titulo() : taskLocal.getTitulo());
         taskLocal.setDescricao(data.descricao() != null ? data.descricao() : taskLocal.getDescricao());
 
@@ -91,26 +78,20 @@ public class TaskService {
             taskLocal.setStatus(TaskEntity.Status.valueOf(data.status()));
         }
 
-        // atualização dos responsáveis pela task
         if (data.idsResponsaveis() != null) {
-            // busca os novos usuários responsáveis com o mesmo método usado em criar task
             List<UserEntity> novosResponsaveis = userRepository.userFindAllByIds(data.idsResponsaveis());
-            // sobrescreve a lista antiga pela nova
             taskLocal.setResponsaveis(novosResponsaveis);
         }
 
         return converterParaDTO(taskLocal);
     }
 
-    // método que será usado pela rota Patch para atualizar apenas o status
     @Transactional
     public void atualizarStatusTask(Long id, String novoStatus) {
-        // verifica se a tarefa existe usando método já presente no repository
         if (!taskRepository.taskExist(id)) {
             throw new IllegalArgumentException("Tarefa não encontrada");
         }
 
-        // Converte a string para o Enum e dispara e chama o método de UPDATE do repository
         TaskEntity.Status statusEnum = TaskEntity.Status.valueOf(novoStatus.toLowerCase());
         taskRepository.updateTaskStatus(id, statusEnum);
     }
@@ -124,9 +105,8 @@ public class TaskService {
     }
 
     private TaskResponseDTO converterParaDTO(TaskEntity entidade){
-        // transfoma a lista de entidades de usuários em uma lista de strings com os nomes dos responsáveis
         List<String> nomesResponsaveis = entidade.getResponsaveis().stream()
-                .map(UserEntity::getNome) // extrai o nome de cada usuário
+                .map(UserEntity::getNome)
                 .collect(Collectors.toList());
 
         return new TaskResponseDTO(
@@ -136,8 +116,8 @@ public class TaskService {
                 entidade.getStatus().name(),
                 entidade.getPrioridade().name(),
                 entidade.getPrazo(),
-                entidade.getCriador().getNome(), // nome do criador
-                nomesResponsaveis // nome dos responsáveis
+                entidade.getCriador().getNome(),
+                nomesResponsaveis
         );
     }
 }

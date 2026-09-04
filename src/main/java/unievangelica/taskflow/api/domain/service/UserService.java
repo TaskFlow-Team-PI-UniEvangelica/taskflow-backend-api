@@ -1,7 +1,5 @@
 package unievangelica.taskflow.api.domain.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
@@ -15,8 +13,15 @@ import java.util.stream.Collectors;
 @Service
 public class UserService {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final UserRepository userRepository;
+
+    public UserService(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
+    public UserEntity buscarPorKeycloakId(String keycloakId) {
+        return userRepository.findByKeycloakId(keycloakId).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+    }
 
     @Transactional
     public UserResponseDTO criarUsuario(UserRequestDTO data){
@@ -39,25 +44,20 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
-    // esse método usa o security filter para obter informações do usuário por meio do token e retornar a visualização para o front end
     public UserResponseDTO obterPerfilUsuario(UserEntity userLogado) {
         return converterParaDTO(userLogado);
     }
 
-    // anotação para garantir rollback nas operações que trabalham com alterações no banco de dados
     @Transactional
     public UserResponseDTO atualizarUsuario(Long id, UserRequestDTO data) {
         UserEntity userLocal = userRepository.userFindById(id)
                 .orElseThrow(()-> new IllegalArgumentException("Usuário não encontrado"));
 
-        // usando tenário para decidir se sera salvo o novo nome ou o nome antigo
         String novoNome = data.nome() != null ? data.nome() : userLocal.getNome();
         String novoEmail = data.email() != null ? data.email() : userLocal.getEmail();
 
-        // usando a querry do repository para atualizar os dados
         userRepository.updateUser(id, novoNome, novoEmail);
 
-        // definindo as variaveis para atualizar o objeto local para converter no DTO
         userLocal.setNome(novoNome);
         userLocal.setEmail(novoEmail);
 

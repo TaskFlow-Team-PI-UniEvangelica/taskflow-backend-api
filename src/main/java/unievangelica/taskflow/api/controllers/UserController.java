@@ -1,9 +1,9 @@
 package unievangelica.taskflow.api.controllers;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.service.UserService;
@@ -15,8 +15,12 @@ import java.util.List;
 @RestController
 @RequestMapping("/user")
 public class UserController {
-    @Autowired
-    private UserService userService;
+    
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
 
     @GetMapping
     public ResponseEntity<List<UserResponseDTO>>listarTodosUsuarios(){
@@ -24,9 +28,9 @@ public class UserController {
         return ResponseEntity.ok(users);
     }
 
-    // rota para listar o usuário logado
     @GetMapping("/me")
-    public ResponseEntity<UserResponseDTO> perfilDeUsuario(@AuthenticationPrincipal UserEntity userLogado) {
+    public ResponseEntity<UserResponseDTO> perfilDeUsuario(@AuthenticationPrincipal Jwt jwt) {
+        UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
         UserResponseDTO profile = userService.obterPerfilUsuario(userLogado);
         return ResponseEntity.ok(profile);
     }

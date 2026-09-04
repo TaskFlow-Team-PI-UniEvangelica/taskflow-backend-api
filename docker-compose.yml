@@ -9,7 +9,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - taskflow_pgdata:/var/lib/postgresql/data # volume para persistencia de dados
+      - taskflow_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME:-taskflow_db}"]
       interval: 5s
@@ -26,29 +26,42 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-taskflow_db}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      JWT_SECRET: ${JWT_SECRET}
       FRONTEND_URL: ${FRONTEND_URL}
       FRONTEND_URL_VITE: ${FRONTEND_URL_VITE}
     depends_on:
       db:
         condition: service_healthy
 
+  keycloak_db:
+    image: postgres:16-alpine
+    container_name: taskflow_keycloak_db
+    environment:
+      POSTGRES_DB: ${KC_DB_NAME:-keycloak}
+      POSTGRES_USER: ${KC_DB_USER:-keycloak}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
+    ports:
+      - "5434:5432"
+    volumes:
+      - keycloak_pgdata:/var/lib/postgresql/data
+
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.0
     container_name: taskflow_keycloak
-    command: start-dev --import-realm # importa o realm
+    command: start-dev --import-realm
     environment:
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-      # Por enquanto, rodar no modo dev (banco H2 interno).
-      # No futuro, para produção, apontar o KC_DB para o Postgres.
+      KEYCLOAK_ADMIN: ${KC_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/${KC_DB_NAME:-keycloak}
+      KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
     ports:
-      - "9090:8080" # Expõe o Keycloak na porta 9090
-    # localização do realm
+      - "9090:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json
     depends_on:
-      - db
+      - keycloak_db
 
 volumes:
   taskflow_pgdata:
+  keycloak_pgdata:

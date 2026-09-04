@@ -43,17 +43,16 @@ public class TaskEntity {
     private UserEntity criador;
 
     // novo relacionamento N to N para os responsáveis das tasks
+    @ManyToOne
+    @JoinColumn(name = "organization_id")
+    private OrganizationEntity organization;
+
     @ManyToMany
     @JoinTable(
             name = "task_responsibles",
             joinColumns = @JoinColumn(name = "task_id"),
             inverseJoinColumns = @JoinColumn(name = "user_id")
     )
-
-    @ManyToOne
-    @JoinColumn(name = "organization_id")
-    private OrganizationEntity organization;
-
     private List<UserEntity> responsaveis = new ArrayList<>();
 
     // lista com todos os valores presentes no enum

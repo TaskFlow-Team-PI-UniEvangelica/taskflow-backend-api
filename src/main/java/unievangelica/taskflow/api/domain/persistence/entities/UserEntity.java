@@ -26,8 +26,8 @@ public class UserEntity {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(name = "keycloack_id", unique = true)
-    private String keycloack_id;
+    @Column(name = "keycloakId", unique = true)
+    private String keycloakId;
 
     @CreationTimestamp
     @Column(name = "criado_em", updatable = false)

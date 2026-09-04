@@ -62,9 +62,18 @@ Configuração das variáveis de ambiente pelo arquivo (.env), crie um arquivo c
 DB_URL=jdbc:postgresql://db:5433/nome_do_seu_banco
 DB_USER=seu_usuario
 DB_PASSWORD=sua_senha
-JWT_SECRET=sua_assinatura_token
 FRONTEND_URL=http://localhost
 FRONTEND_URL_VITE=http://localhost:5173
+KEYCLOACK_URL_VITE=http://localhost:9090/realms/taskflow-realm
+
+# KEYCLOAK POSTGRES DB
+KC_DB_NAME=keycloak
+KC_DB_USER=keycloak
+KC_DB_PASSWORD=keycloak_secret
+
+# KEYCLOAK ADMIN
+KC_ADMIN_USER=admin
+KC_ADMIN_PASSWORD=admin
 ```
 
 # Configuração do .env para execução manual
@@ -73,9 +82,18 @@ Configuração das variáveis de ambiente pelo arquivo (.env), crie um arquivo c
 DB_URL=jdbc:postgresql://localhost:5432/nome_do_seu_banco
 DB_USER=seu_usuario
 DB_PASSWORD=sua_senha
-JWT_SECRET=sua_assinatura_token
 FRONTEND_URL=http://localhost
 FRONTEND_URL_VITE=http://localhost:5173
+KEYCLOACK_URL_VITE=http://localhost:9090/realms/taskflow-realm
+
+# KEYCLOAK POSTGRES DB
+KC_DB_NAME=keycloak
+KC_DB_USER=keycloak
+KC_DB_PASSWORD=keycloak_secret
+
+# KEYCLOAK ADMIN
+KC_ADMIN_USER=admin
+KC_ADMIN_PASSWORD=admin
 ```
 Aponte o .env como variáveis de ambiente usando o caminho do arquivo do .env no inteliJ conforme o vídeo:
 https://drive.google.com/file/d/1DN_R-e5uknsZUgw9rTt7TvpMb6NjcUoc/view?usp=sharing
@@ -87,11 +105,21 @@ spring.application.name=api-taskflow
 spring.datasource.url=postgresql://localhost:5432/nome_do_seu_banco
 spring.datasource.username=seu_usuario
 spring.datasource.password=sua_senha
-api.security.token.secret=${JWT_SECRET:sua_assinatura_token}
 api.cors.frontend.url=${FRONTEND_URL:http://localhost}
 api.cors.frontend.url.vite=${FRONTEND_URL_VITE:http://localhost:5173
 ```
 Localizado em `src/main/resources/application.properties`.
+
+
+## Arquitetura Multi-Tenancy (Organizações)
+O sistema evoluiu de uma gestão de tarefas individual para uma arquitetura Multi-Tenant (SaaS). 
+Agora, a regra de negócios baseia-se em Organizações:
+- Um Usuário pode pertencer a múltiplas Organizações (`OrganizationEntity`).
+- As Tarefas (`TaskEntity`) pertencem primariamente a uma Organização, permitindo isolamento de dados entre diferentes equipes e empresas, resolvendo vulnerabilidades de BOLA (Broken Object Level Authorization).
+
+## Just-In-Time (JIT) Provisioning
+Para manter a sincronia com o provedor de identidade (Keycloak) sem depender de rotinas de sincronização complexas, a API utiliza a estratégia de JIT Provisioning.
+Ao realizar o primeiro acesso autenticado, o `UserProvisioningFilter` intercepta a requisição, extrai as informações do Token JWT (Subject UUID, E-mail, Nome) e insere automaticamente o registro do usuário na tabela do PostgreSQL. Isso garante a amarração transacional com Tarefas e Organizações sem atrito.
 
 # Como executar a aplicação via Docker (Linux)
 Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisitos instalados na sua máquina:
@@ -262,18 +290,15 @@ Esta é a forma recomendada para validar todo o projeto de uma vez (muito útil 
 Abaixo estão as rotas para testar via postman, a collection está na raiz do projeto:
 
 * **Autenticação:**
-    * `POST /auth/login` - Autentica o usuário e retorna o token JWT.
-    * `POST /auth/register` - Cria uma nova conta de usuário.
+    * O sistema utiliza **Keycloak (OIDC)** como Identity Provider. O Backend não possui rotas públicas de login/registro. Todo fluxo de autenticação ocorre externamente e a API apenas valida o Token JWT via Resource Server.
 
 * **Usuários Me (Funciona com base no Token do usuário):**
     * `GET /user/me` - Lista o perfil do usuário logado.
-    * `PATCH /user/me/password` - Essa rota permite o próprio usuário aualizar sua senha passando a antiga como parâmetro.
 
 * **Usuários (Somente admin, essas rotas serão consumidas posteriormente pelo frontend):**
     * `GET /user` - Lista todos os usuários (Essa rota não é para apenas admin).
     * `POST /user` - Adiciona um novo usuário.
     * `PUT /user/{id}` - Atualiza todos os dados de um usuário menos a senha.
-    * `PATCH /user/{id}/password` - Permite atualizar a senha do usuário passando a antiga senha como paramêtro e salva em hash. (função deve ser alterada para funcionamento do admin posteriormente)
     * `DELETE /task/{id}` - Exclui usuário pelo id.
 
 * **Tarefas (Requer token obtido pela rota de login):**
