@@ -36,14 +36,14 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.0
     container_name: taskflow_keycloak
-    command: start-dev
+    command: start-dev --import-realm # importa o realm
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin
       # Por enquanto, rodar no modo dev (banco H2 interno).
       # No futuro, para produção, apontar o KC_DB para o Postgres.
     ports:
-      - "9090:8080" # Expõe o Keycloak na porta 9090 da sua máquina
+      - "9090:8080" # Expõe o Keycloak na porta 9090
     depends_on:
       - db
 
