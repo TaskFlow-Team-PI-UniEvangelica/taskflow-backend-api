@@ -44,6 +44,9 @@ services:
       # No futuro, para produção, apontar o KC_DB para o Postgres.
     ports:
       - "9090:8080" # Expõe o Keycloak na porta 9090
+    # localização do realm
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json
     depends_on:
       - db
 
