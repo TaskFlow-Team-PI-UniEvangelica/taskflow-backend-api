@@ -1,0 +1,246 @@
+:root {
+  --primary-blue: #3b82f6;
+  --text-dark: #1f2937;
+  --text-light: #6b7280;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+}
+
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-image: url('../img/background.png');
+  background-size: cover;
+  background-position: center;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  width: 950px;
+  height: 650px;
+  background: #fcfcfc;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.formSection {
+  width: 50%;
+  height: 100%;
+  padding: 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.brandSection {
+  width: 50%;
+  height: 100%;
+  background-image: url('../img/login.jpg'); 
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logoTitle {
+  color: white;
+  font-size: 3rem;
+  line-height: 1.2;
+  margin: 0;
+}
+.logoTitle span {
+  background-color: var(--primary-blue);
+  padding: 0px 10px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-bottom: 5px;
+}
+
+.header {
+  margin-bottom: 30px;
+  text-align: left;
+}
+.title {
+  font-size: 2rem;
+  color: var(--text-dark);
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.subtitle {
+  color: var(--text-light);
+  font-size: 1rem;
+  margin: 0;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+}
+.input-group label {
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+}
+.input-group input {
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  padding: 12px;
+  font-size: 1rem;
+  outline: none;
+  transition: border-color 0.3s;
+}
+.input-group input:focus {
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+.forgotPassword {
+  text-align: right;
+  margin-bottom: 25px;
+}
+.forgotLink {
+  color: var(--primary-blue);
+  font-size: 0.9rem;
+  text-decoration: none;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.3s ease;
+}
+.forgotLink:hover {
+  text-decoration: underline;
+  filter: brightness(1.2); 
+}
+
+.btn-primary {
+  background-color: var(--primary-blue);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  padding: 12px;
+  font-size: 1.1rem;
+  width: 100%;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.btn-primary:hover {
+  background-color: #2563eb;
+}
+
+.socialLogin {
+  margin-top: 30px;
+  text-align: center;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  color: var(--text-light);
+  font-size: 0.9rem;
+  margin: 30px 0;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background-color: #006eff;
+}
+
+.footerText {
+  color: var(--text-light);
+  margin-top: 25px;
+  font-size: 0.9rem;
+}
+.signupLink {
+  color: var(--primary-blue);
+  font-weight: 800;
+  cursor: pointer;
+  margin-left: 5px;
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+.signupLink:hover {
+  text-shadow: 0 0 8px rgba(37, 83, 235, 0.3); 
+}
+
+.alert-error {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+  text-align: center;
+  font-weight: 600;
+}
+
+@media (max-width: 800px) {
+  .card {
+    flex-direction: column;
+    height: auto;
+    width: 95%;
+  }
+  .formSection, .brandSection {
+    width: 100%;
+  }
+  .brandSection {
+    display: none;
+  }
+}
+
+/* Classes de Reversão para Registro */
+.card.reverse {
+  flex-direction: row-reverse;
+}
+
+/* Espaçamento das ações (Cancelar e Criar conta) */
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 30px;
+}
+
+.cancelLink {
+  cursor: pointer;
+  color: var(--text-light);
+  font-weight: 600;
+  transition: color 0.3s;
+  text-decoration: none;
+}
+.cancelLink:hover {
+  color: #ef4444; /* danger */
+}
+
+/* Animação suave para as transições de formulário (Recuperação e Registro) */
+.formFade {
+  animation: none;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Reduzir espaçamento dos inputs no Registro para não quebrar o layout de 650px */
+.register-group {
+  margin-bottom: 12px;
+}
+.register-group input {
+  padding: 10px;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
