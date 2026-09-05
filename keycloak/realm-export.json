@@ -1398,7 +1398,18 @@
     "xXSSProtection": "1; mode=block",
     "strictTransportSecurity": "max-age=31536000; includeSubDomains"
   },
-  "smtpServer": {},
+  "smtpServer": {
+    "replyToDisplayName": "",
+    "starttls": "false",
+    "auth": "",
+    "port": "1025",
+    "host": "mailpit",
+    "replyTo": "",
+    "from": "nao-responda@taskflow.com",
+    "fromDisplayName": "Suporte TaskFlow",
+    "envelopeFrom": "",
+    "ssl": "false"
+  },
   "loginTheme": "taskflow",
   "accountTheme": "",
   "adminTheme": "",
@@ -1573,8 +1584,11 @@
       }
     ]
   },
-  "internationalizationEnabled": false,
-  "supportedLocales": [],
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "pt-BR"
+  ],
+  "defaultLocale": "pt-BR",
   "authenticationFlows": [
     {
       "id": "b6145f0f-7c49-4155-a354-08395f9537f5",

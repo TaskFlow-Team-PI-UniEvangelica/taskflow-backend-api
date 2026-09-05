@@ -259,7 +259,10 @@ Abaixo estão as rotas para testar via postman, a collection está na raiz do pr
     * O sistema utiliza **Keycloak (OIDC)** como Identity Provider. O Backend não possui rotas públicas de login/registro. Todo fluxo de autenticação ocorre externamente e a API apenas valida o Token JWT via Resource Server.
 
 * **Usuários Me (Funciona com base no Token do usuário):**
-    * `GET /user/me` - Lista o perfil do usuário logado.
+    * `GET /user/me` - Lista o perfil do usuário logado e espelha silenciosamente (JIT) alterações de nome vindas do Keycloak.
+    * `POST /user/me/avatar` - Faz upload da foto de perfil do usuário logado (usado pelo React com react-easy-crop).
+    * `GET /user/{id}/avatar` - Retorna o arquivo binário da imagem de perfil (acessível apenas via fetch autenticado).
+    * `DELETE /user/me/avatar` - Remove a foto de perfil do usuário logado.
 
 * **Usuários (Somente admin, essas rotas serão consumidas posteriormente pelo frontend):**
     * `GET /user` - Lista todos os usuários (Essa rota não é para apenas admin).
