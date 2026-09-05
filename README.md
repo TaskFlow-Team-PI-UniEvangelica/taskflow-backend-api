@@ -92,7 +92,7 @@ KC_ADMIN_USER=admin
 KC_ADMIN_PASSWORD=admin
 
 # ===============================
-# FERRAMENTAS EXTRAS DE DEV
+# FERRAMENTAS EXTRAS DE DEV (PGADMIN)
 # ===============================
 PGADMIN_EMAIL=admin@taskflow.com
 PGADMIN_PASSWORD=admin
