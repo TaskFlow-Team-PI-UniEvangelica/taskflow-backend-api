@@ -1,53 +1,55 @@
 services:
-  db:
+  # Bancos de Dados sem expor portas
+  taskflow_db:
     image: postgres:16-alpine
-    container_name: taskflow_db
+    container_name: taskflow_db_prod
+    restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-taskflow_db}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5433:5432"
+      POSTGRES_DB: ${DB_NAME:-taskflow}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
-      - taskflow_pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME:-taskflow_db}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  api:
-    build: .
-    container_name: taskflow_api
-    image: img_taskflow_api
-    ports:
-      - "8080:8080"
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${DB_NAME:-taskflow_db}
-      SPRING_DATASOURCE_USERNAME: ${DB_USER}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      FRONTEND_URL: ${FRONTEND_URL}
-      FRONTEND_URL_VITE: ${FRONTEND_URL_VITE}
-    depends_on:
-      db:
-        condition: service_healthy
+      - taskflow_pgdata_prod:/var/lib/postgresql/data
 
   keycloak_db:
     image: postgres:16-alpine
-    container_name: taskflow_keycloak_db
+    container_name: taskflow_keycloak_db_prod
+    restart: always
     environment:
       POSTGRES_DB: ${KC_DB_NAME:-keycloak}
       POSTGRES_USER: ${KC_DB_USER:-keycloak}
       POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
-    ports:
-      - "5434:5432"
     volumes:
-      - keycloak_pgdata:/var/lib/postgresql/data
+      - keycloak_pgdata_prod:/var/lib/postgresql/data
 
+
+  # Back-end API
+  taskflow_api:
+    build: .
+    container_name: taskflow_api_prod
+    restart: always
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://taskflow_db:5432/${DB_NAME:-taskflow}
+      - SPRING_DATASOURCE_USERNAME=${DB_USER:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD:-postgres}
+      # A API exigirá o domínio oficial (HTTPS) gerado pelo Cloudflare
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI=https://${KC_DOMAIN:-auth.seudominio.com}/realms/taskflow-realm
+      # Comunicação interna rápida com o Keycloak via rede Docker
+      - SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=http://keycloak:8080/realms/taskflow-realm/protocol/openid-connect/certs
+      - FRONTEND_URL=${FRONTEND_URL:-https://taskflow.com.br}
+      - FRONTEND_URL_VITE=${FRONTEND_URL:-https://taskflow.com.br}
+    depends_on:
+      - taskflow_db
+      - keycloak
+
+
+  # Keycloak
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.0
-    container_name: taskflow_keycloak
-    command: start-dev --import-realm --spi-theme-static-max-age=-1 --spi-theme-cache-themes=false --spi-theme-cache-templates=false
+    container_name: taskflow_keycloak_prod
+    restart: always
+    # starta ativando todos os caches e exige segurança
+    command: start
     environment:
       KEYCLOAK_ADMIN: ${KC_ADMIN_USER:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
@@ -55,14 +57,32 @@ services:
       KC_DB_URL: jdbc:postgresql://keycloak_db:5432/${KC_DB_NAME:-keycloak}
       KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
-    ports:
-      - "9090:8080"
+
+
+      # CONFIGURAÇÕES PARA O CLOUDFLARE TUNNEL
+      KC_PROXY_HEADERS: xforwarded # Ensina o Keycloak a confiar no Cloudflare
+      KC_HOSTNAME: ${KC_DOMAIN:-auth.seudominio.com} # Exige o domínio oficial com HTTPS
+      KC_HTTP_ENABLED: "true" # Permite tráfego HTTP interno (pois o SSL fica na nuvem)
     volumes:
-      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm.json
       - ./keycloak/theme/taskflow:/opt/keycloak/themes/taskflow
     depends_on:
       - keycloak_db
 
+
+  # Cloudflare Tunnel
+  # O Cloudflare cuidará 100% do SSL sem abrir NENHUMA porta no servidor.
+  # Descomente este bloco quando usar dominio comprar o domínio
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: taskflow_cloudflared
+  #   restart: always
+  #   command: tunnel run
+  #   environment:
+  #     - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+  #   depends_on:
+  #     - taskflow_api
+  #     - keycloak
+
 volumes:
-  taskflow_pgdata:
-  keycloak_pgdata:
+  taskflow_pgdata_prod:
+  keycloak_pgdata_prod:
