@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Criar Conta - TaskFlow</title>
-    <meta name="view-transition" content="same-origin">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="${url.resourcesPath}/css/taskflow-theme.css">
+    <meta name="view-transition" content="same-origin">
 </head>
 <body>
     <div class="container">
@@ -30,12 +30,12 @@
                         
                         <div class="input-group register-group">
                             <label for="firstName">Nome</label>
-                            <input type="text" id="firstName" name="firstName" value="${(register.formData.firstName!'')}" autofocus placeholder="Seu nome completo" required />
+                            <input type="text" id="firstName" name="firstName" value="${(register.formData.firstName!'')}" autofocus placeholder="Seu nome" required />
                         </div>
-
-                        <div class="input-group" style="display: none;">
+                        
+                        <div class="input-group register-group">
                             <label for="lastName">Sobrenome</label>
-                            <input type="text" id="lastName" name="lastName" value=" " />
+                            <input type="text" id="lastName" name="lastName" value="${(register.formData.lastName!'')}" placeholder="Seu sobrenome" required />
                         </div>
 
                         <div class="input-group register-group">
