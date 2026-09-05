@@ -9,6 +9,8 @@ import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
 
 @Service
 public class UserService {
@@ -70,6 +72,33 @@ public class UserService {
             throw new IllegalArgumentException("Ususário não encontrado");
         }
         userRepository.deleteUserById(id);
+    }
+
+    
+    public UserEntity buscarPorId(Long id) {
+        return userRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+    }
+
+    @Transactional
+    public void updateAvatar(String keycloakId, MultipartFile file) {
+        try {
+            userRepository.updateAvatar(keycloakId, file.getBytes(), file.getContentType());
+        } catch (IOException e) {
+            throw new RuntimeException("Erro ao processar imagem", e);
+        }
+    }
+
+    
+    @Transactional
+    public void deleteAvatar(String keycloakId) {
+        userRepository.removeAvatar(keycloakId);
+    }
+
+    
+    @Transactional
+    public void sincronizarNome(UserEntity user, String novoNome) {
+        user.setNome(novoNome);
+        userRepository.updateUser(user.getId(), novoNome, user.getEmail());
     }
 
     private UserResponseDTO converterParaDTO(UserEntity entidade) {

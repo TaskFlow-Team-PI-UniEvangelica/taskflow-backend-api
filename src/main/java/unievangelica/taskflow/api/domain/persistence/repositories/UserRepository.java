@@ -50,4 +50,13 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     @Modifying
     @Query("DELETE FROM User u WHERE u.id = :id")
     void deleteUserById(@Param("id") Long id);
+
+    @Modifying
+    @Query("UPDATE User u SET u.avatar = null, u.avatarType = null WHERE u.keycloakId = :keycloakId")
+    void removeAvatar(@Param("keycloakId") String keycloakId);
+
+    @Modifying
+    @Query("UPDATE User u SET u.avatar = :avatar, u.avatarType = :avatarType WHERE u.keycloakId = :keycloakId")
+    void updateAvatar(@Param("keycloakId") String keycloakId, @Param("avatar") byte[] avatar, @Param("avatarType") String avatarType);
+
 }

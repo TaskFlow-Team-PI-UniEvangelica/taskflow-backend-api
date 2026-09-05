@@ -11,6 +11,9 @@ import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
 import java.util.List;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 
 @RestController
 @RequestMapping("/user")
@@ -31,6 +34,13 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<UserResponseDTO> perfilDeUsuario(@AuthenticationPrincipal Jwt jwt) {
         UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
+        
+        // Sincronizacao Just-In-Time (Espelha o nome do Keycloak para o Banco de Dados)
+        String nomeNoToken = jwt.getClaimAsString("name");
+        if (nomeNoToken != null && !nomeNoToken.trim().isEmpty() && !nomeNoToken.equals(userLogado.getNome())) {
+            userService.sincronizarNome(userLogado, nomeNoToken);
+        }
+
         UserResponseDTO profile = userService.obterPerfilUsuario(userLogado);
         return ResponseEntity.ok(profile);
     }
@@ -52,4 +62,28 @@ public class UserController {
         userService.deletarUsuario(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Void> uploadAvatar(@AuthenticationPrincipal Jwt jwt, @RequestParam("file") MultipartFile file) {
+        userService.updateAvatar(jwt.getSubject(), file);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping(value = "/{id}/avatar")
+    public ResponseEntity<byte[]> getAvatar(@PathVariable Long id) {
+        UserEntity user = userService.buscarPorId(id);
+        if (user.getAvatar() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, user.getAvatarType() != null ? user.getAvatarType() : "image/jpeg")
+                .body(user.getAvatar());
+    }
+
+    @DeleteMapping(value = "/me/avatar")
+    public ResponseEntity<Void> deleteAvatar(@AuthenticationPrincipal Jwt jwt) {
+        userService.deleteAvatar(jwt.getSubject());
+        return ResponseEntity.noContent().build();
+    }
+
 }

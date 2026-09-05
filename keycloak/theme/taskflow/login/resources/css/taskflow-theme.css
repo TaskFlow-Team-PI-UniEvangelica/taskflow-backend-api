@@ -175,16 +175,6 @@ body {
   text-shadow: 0 0 8px rgba(37, 83, 235, 0.3); 
 }
 
-.alert-error {
-  background-color: #fee2e2;
-  color: #b91c1c;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 15px;
-  font-size: 0.9rem;
-  text-align: center;
-  font-weight: 600;
-}
 
 @media (max-width: 800px) {
   .card {
@@ -243,4 +233,41 @@ body {
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+/* =========================================
+   Alertas e Avisos do Keycloak (Estilo React)
+   ========================================= */
+.alert {
+  text-align: center;
+  margin-bottom: 15px;
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+/* Erros (Senha incorreta, E-mail existente) */
+.alert-error {
+  color: #b91c1c; 
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 12px; 
+  border-radius: 8px; 
+}
+
+/* Sucesso (E-mail enviado, Conta criada) */
+.alert-success {
+  color: #15803d;
+  background-color: #dcfce7;
+  border: 1px solid #bbf7d0;
+  padding: 12px; 
+  border-radius: 8px; 
+}
+
+/* Avisos e Info (Precisa alterar senha) */
+.alert-warning, .alert-info {
+  color: #b91c1c; 
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  padding: 12px; 
+  border-radius: 8px; 
 }

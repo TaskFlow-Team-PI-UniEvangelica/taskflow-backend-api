@@ -28,6 +28,11 @@ public class UserEntity {
 
     @Column(name = "keycloakId", unique = true)
     private String keycloakId;
+    @Column(name = "avatar")
+    private byte[] avatar;
+
+    @Column(name = "avatar_type")
+    private String avatarType;
 
     @CreationTimestamp
     @Column(name = "criado_em", updatable = false)
