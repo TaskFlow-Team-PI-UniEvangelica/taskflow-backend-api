@@ -17,7 +17,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     Optional<UserEntity> findByKeycloakId(@Param("keycloakId") String keycloakId);
 
     @Query("SELECT u FROM User u WHERE u.email = :email")
-    Optional<UserEntity> findByEmail(@Param("keycloakId") String keycloakId);
+    Optional<UserEntity> findByEmail(@Param("email") String email);
 
     
     // atualização dos repositories parando de usar o JPA para gerenciar as consultas

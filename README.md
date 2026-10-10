@@ -6,6 +6,13 @@ API desenvolvida com foco no gerenciado de usuários e tarefas, utilizando Sprin
     a definir ainda
     ```
 
+## Configuração e Variáveis de Ambiente
+Antes de rodar a aplicação, renomeie o arquivo `.env.example` para `.env` e preencha as variáveis corretamente (Banco de dados, Keycloak, etc).
+
+## Swagger / OpenAPI
+A documentação interativa da API pode ser acessada através do Swagger UI. Como utilizamos o Keycloak para autenticação (Multi-Tenant RBAC), o Swagger já está configurado para interagir com o OAuth2 (Authorization Code Flow) e redirecionar para a tela de login.
+- URL do Swagger: `http://localhost:8080/swagger-ui/index.html`
+
 ## Dependências e Tecnologias Usadas
 * **Linguagem:** Java 21+
 * **Framework:** Spring Boot
@@ -52,8 +59,7 @@ taskflow-backend-api/
 ├── Makefile                                     # Atalhos de automação (make run, make test)
 ├── .env                                         # Arquivo de variáveis de ambiente locais
 ├── pom.xml                                      # Gerenciador de dependências (Maven)
-├── README.md                                    # Documentação principal do projeto
-└── TaskFlow-API.postman_collection.json         # Collection de endpoints para uso no Postman
+└── README.md                                    # Documentação principal do projeto
 ```
 
 # Configuração do .env para Desenvolvimento (Local)
@@ -251,28 +257,21 @@ Esta é a forma recomendada para validar todo o projeto de uma vez (muito útil 
   mvnw.cmd test
   ```
 
-# Endpoints da API
+# Documentação da API (Swagger)
 
-Abaixo estão as rotas para testar via postman, a collection está na raiz do projeto:
+A API possui sua documentação gerada dinamicamente através do **Swagger UI** (OpenAPI 3). Nele, você pode visualizar todos os endpoints disponíveis, seus métodos, esquemas de requisição/resposta, validações e testar as requisições diretamente do navegador.
 
-* **Autenticação:**
-    * O sistema utiliza **Keycloak (OIDC)** como Identity Provider. O Backend não possui rotas públicas de login/registro. Todo fluxo de autenticação ocorre externamente e a API apenas valida o Token JWT via Resource Server.
+### Como acessar o Swagger:
+1. Certifique-se de que a aplicação Spring Boot (backend) esteja rodando na sua máquina.
+2. Acesse a seguinte URL no seu navegador:
+   [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 
-* **Usuários Me (Funciona com base no Token do usuário):**
-    * `GET /user/me` - Lista o perfil do usuário logado e espelha silenciosamente (JIT) alterações de nome vindas do Keycloak.
-    * `POST /user/me/avatar` - Faz upload da foto de perfil do usuário logado (usado pelo React com react-easy-crop).
-    * `GET /user/{id}/avatar` - Retorna o arquivo binário da imagem de perfil (acessível apenas via fetch autenticado).
-    * `DELETE /user/me/avatar` - Remove a foto de perfil do usuário logado.
+### Como realizar requisições autenticadas no Swagger:
+A API está perfeitamente integrada ao Keycloak. Você não precisa gerar o token manualmente e colar. Para testar as rotas fechadas:
+1. Clique no botão **Authorize** (geralmente com um ícone de cadeado) no canto superior direito da tela do Swagger.
+2. Na janela modal que abrir, role para baixo até a opção **OAuth2**.
+3. Deixe o client_id como `taskflow-frontend` e clique em **Authorize**.
+4. Você será redirecionado automaticamente para a tela de login do Keycloak. Faça login com suas credenciais.
+5. Após o login, você será redirecionado de volta para o Swagger já autenticado. A partir desse momento, basta clicar em **"Try it out"** nas rotas e o Swagger injetará o token automaticamente.
 
-* **Usuários (Somente admin, essas rotas serão consumidas posteriormente pelo frontend):**
-    * `GET /user` - Lista todos os usuários (Essa rota não é para apenas admin).
-    * `POST /user` - Adiciona um novo usuário.
-    * `PUT /user/{id}` - Atualiza todos os dados de um usuário menos a senha.
-    * `DELETE /task/{id}` - Exclui usuário pelo id.
-
-* **Tarefas (Requer token obtido pela rota de login):**
-    * `GET /task` - Lista as tarefas de todos os usuário autenticado.
-    * `POST /task` - Cria uma nova tarefa (apenas admin).
-    * `PUT /task/{id}` - Atualiza os dados de uma tarefa.
-    * `PATCH /task/{id}/status` - Atualiza os dados de status de uma tarefa, usado para o Kanban do Frontend.
-    * `DELETE /task/{id}` - Exclui uma tarefa (apenas admin).
+*Nota:* Se houver erro de "Invalid redirect_uri", verifique se configurou a URL `http://localhost:8080/*` nos *Valid Redirect URIs* do Client `taskflow-frontend` no painel de administração do Keycloak, ou se iniciou um banco do zero após a última atualização do arquivo `realm-export.json`.

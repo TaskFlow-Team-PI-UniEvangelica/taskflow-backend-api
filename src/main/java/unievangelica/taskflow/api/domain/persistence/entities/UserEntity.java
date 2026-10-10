@@ -42,6 +42,6 @@ public class UserEntity {
     @Column(name = "atualizado_em")
     private LocalDateTime atualizadoEm;
 
-    @ManyToMany(mappedBy = "users")
-    private List<OrganizationEntity> organizations = new ArrayList<>();
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OrganizationMemberEntity> memberships = new ArrayList<>();
 }
