@@ -9,6 +9,7 @@ public record TaskRequestDTO(
         String status,
         String prioridade,
         String prazo,
-        List<Long> idsResponsaveis
+        List<Long> idsResponsaveis,
+        Long organizationId
 ) {
 }

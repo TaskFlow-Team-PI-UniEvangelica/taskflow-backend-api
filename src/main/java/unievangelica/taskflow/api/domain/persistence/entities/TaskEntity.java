@@ -55,6 +55,9 @@ public class TaskEntity {
     )
     private List<UserEntity> responsaveis = new ArrayList<>();
 
+    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TaskHistoryEntity> history = new ArrayList<>();
+
     // lista com todos os valores presentes no enum
     public enum Status {
         pendente,
