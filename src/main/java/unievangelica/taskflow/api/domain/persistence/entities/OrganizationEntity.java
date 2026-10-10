@@ -26,11 +26,18 @@ public class OrganizationEntity {
     @Column(name = "criado_em", updatable = false)
     private LocalDateTime criadoEm;
 
-    @ManyToMany
-    @JoinTable(
-            name = "organization_users",
-            joinColumns = @JoinColumn(name = "organization_id"),
-            inverseJoinColumns = @JoinColumn(name = "user_id")
-    )
-    private List<UserEntity> users = new ArrayList<>();
+    @Column(name = "members_can_delete_tasks", nullable = false)
+    private boolean membersCanDeleteTasks = false;
+
+    @Column(name = "members_can_change_deadlines", nullable = false)
+    private boolean membersCanChangeDeadlines = false;
+
+    @Column(name = "members_can_return_tasks", nullable = false)
+    private boolean membersCanReturnTasks = false;
+
+    @Column(name = "members_can_create_tasks", nullable = false)
+    private boolean membersCanCreateTasks = true;
+
+    @OneToMany(mappedBy = "organization", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<OrganizationMemberEntity> members = new ArrayList<>();
 }
