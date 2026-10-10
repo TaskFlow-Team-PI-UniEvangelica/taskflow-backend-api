@@ -1,0 +1,218 @@
+/* =========================================================
+   TASKFLOW - Account Console (Keycloak 24 / keycloak.v3)
+   O Account Console usa PatternFly 4 (classes "pf-c-*").
+   ========================================================= */
+
+:root {
+  --tf-primary: #3b82f6;
+  --tf-primary-hover: #2563eb;
+  --tf-text-dark: #1f2937;
+  --tf-text-light: #6b7280;
+  --tf-topbar-height: 64px;
+
+  --pf-global--primary-color--100: var(--tf-primary);
+  --pf-global--primary-color--200: var(--tf-primary-hover);
+  --pf-global--link--Color: var(--tf-primary);
+  --pf-global--link--Color--hover: var(--tf-primary-hover);
+  --pf-global--active-color--100: var(--tf-primary);
+  --pf-global--FontFamily--sans-serif: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --pf-global--FontFamily--heading--sans-serif: 'Inter', 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ---------- Fundo igual ao da tela de login ---------- */
+html, body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  background-image: url('../img/background.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+#app {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Tela de carregamento traduzida */
+.keycloak__loading-container {
+  background: transparent !important;
+  height: calc(100vh - var(--tf-topbar-height)) !important;
+}
+#loading-text {
+  font-size: 0 !important;
+}
+#loading-text::after {
+  content: "Carregando sua conta...";
+  font-size: 20px;
+  color: #ffffff;
+}
+
+/* ---------- Remove cabeçalho e barra lateral do Keycloak ---------- */
+.pf-c-masthead,
+.pf-c-page__header,
+.pf-c-page__sidebar,
+.pf-c-skip-to-content {
+  display: none !important;
+}
+
+.pf-c-page,
+.pf-c-page.pf-m-full-height {
+  height: 100% !important;
+  max-height: 100% !important;
+  grid-template-columns: 1fr !important;
+  grid-template-rows: 1fr !important;
+  grid-template-areas: "main" !important;
+  background: transparent !important;
+}
+
+.pf-c-page__main-container,
+.pf-c-page__main {
+  grid-area: main !important;
+  background: transparent !important;
+  padding: 32px 16px;
+  box-sizing: border-box;
+}
+
+/* ---------- Barra superior TaskFlow (injetada via JS) ---------- */
+.tf-topbar {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: var(--tf-topbar-height);
+  padding: 0 32px;
+  box-sizing: border-box;
+  background: rgba(252, 252, 252, 0.97);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.tf-brand {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--tf-text-dark);
+  white-space: nowrap;
+}
+.tf-brand span {
+  background-color: var(--tf-primary);
+  color: #ffffff;
+  padding: 0 8px;
+  margin-right: 2px;
+  border-radius: 6px;
+}
+
+.tf-tabs {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  height: 100%;
+}
+.tf-tabs a {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  color: var(--tf-text-light);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+.tf-tabs a:hover {
+  color: var(--tf-primary);
+  text-decoration: none;
+}
+.tf-tabs a.tf-active {
+  color: var(--tf-primary);
+  border-bottom-color: var(--tf-primary);
+}
+
+.tf-back {
+  background-color: var(--tf-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 22px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.2s;
+}
+.tf-back:hover {
+  background-color: var(--tf-primary-hover);
+}
+
+/* ---------- Conteúdo em card, como no login ---------- */
+.pf-c-page__main-section {
+  max-width: 900px;
+  margin: 0 auto 24px auto !important; /* Espaçamento entre os cards */
+  background: #ffffff !important;      /* Cor de fundo unificada (branco puro) */
+  padding: 32px !important;
+  border-radius: 16px !important;      /* Bordas arredondadas em todos os cards */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important; /* Sombra suave individual */
+}
+
+.pf-c-title {
+  color: var(--tf-text-dark) !important;
+  font-weight: 700 !important;
+}
+
+/* ---------- Formulários e botões ---------- */
+.pf-c-form-control {
+  border-radius: 8px !important;
+}
+.pf-c-form-control:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+}
+
+.pf-c-button {
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+}
+.pf-c-button.pf-m-primary {
+  background-color: var(--tf-primary) !important;
+}
+.pf-c-button.pf-m-primary:hover {
+  background-color: var(--tf-primary-hover) !important;
+}
+
+/* ---------- Responsivo ---------- */
+@media (max-width: 700px) {
+  :root { --tf-topbar-height: auto; }
+  .tf-topbar {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 12px 16px;
+  }
+  .tf-tabs {
+    order: 3;
+    flex-basis: 100%;
+    height: 44px;
+  }
+  .tf-back { margin-left: auto; }
+  .pf-c-page__main-section { padding: 16px !important; }
+}
+
+/* ---------- Ocultar Cabeçalhos Nativos e Jump Links (PatternFly) ---------- */
+[data-testid="page-heading"] {
+  display: none !important;
+}
+
+.pf-c-jump-links {
+  display: none !important;
+}
+
+/* Ocultar a coluna lateral inteira que contém o jump-links */
+.pf-l-grid__item:has(.pf-c-jump-links),
+.pf-c-jump-links {
+  display: none !important;
+}
+
+
