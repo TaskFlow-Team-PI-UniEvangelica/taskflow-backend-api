@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
+import unievangelica.taskflow.api.domain.persistence.entities.TaskEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationRepository;
@@ -76,6 +77,83 @@ public class OrganizationServiceTest {
         assertEquals("New Org", response.nome());
         assertEquals("OWNER", response.myRole());
         verify(organizationMemberRepository, times(1)).save(any(OrganizationMemberEntity.class));
+    }
+
+    @Test
+    @DisplayName("Deve bloquear ativação simultânea de excluir todas as tasks e excluir apenas as próprias tasks")
+    void testBloqueiaExclusaoMutuamenteExclusiva() {
+        OrganizationRequestDTO invalidRequest = new OrganizationRequestDTO(
+                "Org Inválida", true, true, false, false, true, 7
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            organizationService.criarOrganizacao(invalidRequest, owner);
+        });
+    }
+
+    @Test
+    @DisplayName("Deve bloquear excluir apenas próprias tasks se a opção de criar tasks estiver desligada")
+    void testBloqueiaExclusaoPropriaSemCriarTaskLigado() {
+        OrganizationRequestDTO invalidRequest = new OrganizationRequestDTO(
+                "Org Sem Criação", false, true, false, false, false, 7
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            organizationService.criarOrganizacao(invalidRequest, owner);
+        });
+    }
+
+    @Test
+    @DisplayName("canDeleteTask: MEMBER pode excluir apenas sua própria task quando membersCanDeleteOwnTasks=true")
+    void testCanDeleteTaskMemberApenasPropriaTask() {
+        organization.setMembersCanCreateTasks(true);
+        organization.setMembersCanDeleteOwnTasks(true);
+        organization.setMembersCanDeleteTasks(false);
+
+        OrganizationMemberEntity membership = new OrganizationMemberEntity();
+        membership.setUser(member);
+        membership.setOrganization(organization);
+        membership.setRole(OrganizationRole.MEMBER);
+
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(membership));
+
+        TaskEntity ownTask = new TaskEntity();
+        ownTask.setId(100L);
+        ownTask.setOrganization(organization);
+        ownTask.setCriador(member);
+
+        TaskEntity otherUserTask = new TaskEntity();
+        otherUserTask.setId(101L);
+        otherUserTask.setOrganization(organization);
+        otherUserTask.setCriador(owner);
+
+        assertTrue(organizationService.canDeleteTask(member, ownTask));
+        assertFalse(organizationService.canDeleteTask(member, otherUserTask));
+    }
+
+    @Test
+    @DisplayName("Atualizar Organização: SUB_OWNER não pode alterar a persistência (deletedTasksRetentionDays)")
+    void testSubOwnerNaoPodeAlterarRetencaoDeExcluidas() {
+        organization.setDeletedTasksRetentionDays(7);
+
+        OrganizationMemberEntity subOwnerMembership = new OrganizationMemberEntity();
+        subOwnerMembership.setUser(member);
+        subOwnerMembership.setOrganization(organization);
+        subOwnerMembership.setRole(OrganizationRole.SUB_OWNER);
+
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(subOwnerMembership));
+        when(organizationRepository.findById(10L))
+                .thenReturn(Optional.of(organization));
+
+        OrganizationRequestDTO request = new OrganizationRequestDTO(
+                "My Org", false, false, false, false, true, 30
+        );
+
+        assertThrows(SecurityException.class, () -> {
+            organizationService.atualizarOrganizacao(10L, request, member);
+        });
     }
 
     @Test

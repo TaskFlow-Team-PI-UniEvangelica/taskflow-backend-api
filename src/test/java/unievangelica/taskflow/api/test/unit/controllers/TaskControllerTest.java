@@ -24,8 +24,10 @@ import unievangelica.taskflow.api.domain.service.TaskService;
 import unievangelica.taskflow.api.domain.service.UserService;
 import unievangelica.taskflow.api.dto.request.TaskRequestDTO;
 import unievangelica.taskflow.api.dto.request.TaskStatusRequestDTO;
+import unievangelica.taskflow.api.dto.response.TaskHistoryResponseDTO;
 import unievangelica.taskflow.api.dto.response.TaskResponseDTO;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -88,6 +90,7 @@ public class TaskControllerTest {
         mockMvc.perform(get("/task"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].taskNumber").value(1))
                 .andExpect(jsonPath("$[0].titulo").value("Titulo"));
 
         verify(taskService, times(1)).listarTasks(any(), any());
@@ -143,8 +146,8 @@ public class TaskControllerTest {
     @Test
     @DisplayName("Deve buscar historico da tarefa no GET /task/{id}/history")
     void testBuscarHistoricoTask() throws Exception {
-        unievangelica.taskflow.api.dto.response.TaskHistoryResponseDTO historyDTO = new unievangelica.taskflow.api.dto.response.TaskHistoryResponseDTO(
-                1L, "STATUS_CHANGE", "pendente", "concluida", "Usuário Teste", java.time.LocalDateTime.now()
+        TaskHistoryResponseDTO historyDTO = new TaskHistoryResponseDTO(
+                1L, "STATUS_CHANGE", "pendente", "concluida", "Usuário Teste", LocalDateTime.now()
         );
 
         when(userService.buscarPorKeycloakId("keycloak-id-123")).thenReturn(mockUser);
@@ -159,5 +162,24 @@ public class TaskControllerTest {
                 .andExpect(jsonPath("$[0].userName").value("Usuário Teste"));
 
         verify(taskService, times(1)).getTaskHistory(eq(1L), eq(mockUser));
+    }
+
+    @Test
+    @DisplayName("Deve buscar histórico de tarefas excluídas da organização no GET /task/organization/{orgId}/deleted-history")
+    void testBuscarHistoricoTasksExcluidasOrganizacao() throws Exception {
+        TaskHistoryResponseDTO deletedDTO = new TaskHistoryResponseDTO(
+                10L, null, 2, "Tarefa Removida", "DELETED", "Tarefa Removida", null, "Gerente", LocalDateTime.now()
+        );
+
+        when(userService.buscarPorKeycloakId("keycloak-id-123")).thenReturn(mockUser);
+        when(taskService.getDeletedTasksHistory(eq(5L), eq(mockUser))).thenReturn(List.of(deletedDTO));
+
+        mockMvc.perform(get("/task/organization/5/deleted-history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].taskNumber").value(2))
+                .andExpect(jsonPath("$[0].taskTitle").value("Tarefa Removida"))
+                .andExpect(jsonPath("$[0].actionType").value("DELETED"));
+
+        verify(taskService, times(1)).getDeletedTasksHistory(eq(5L), eq(mockUser));
     }
 }
