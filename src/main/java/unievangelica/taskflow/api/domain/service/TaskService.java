@@ -136,6 +136,17 @@ public class TaskService {
         return converterParaDTO(taskLocal);
     }
 
+    private boolean isAboveMemberInTaskOrg(UserEntity user, TaskEntity task) {
+        if (user == null || task == null || task.getOrganization() == null || task.getOrganization().getMembers() == null) {
+            return false;
+        }
+        return task.getOrganization().getMembers().stream()
+                .filter(m -> m.getUser() != null && Objects.equals(m.getUser().getId(), user.getId()))
+                .anyMatch(m -> m.getRole() == OrganizationRole.OWNER
+                        || m.getRole() == OrganizationRole.SUB_OWNER
+                        || m.getRole() == OrganizationRole.MANAGER);
+    }
+
     @Transactional
     public TaskResponseDTO atualizarTask(Long id, TaskRequestDTO data, UserEntity userLogado) {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
@@ -159,11 +170,38 @@ public class TaskService {
                 ? List.copyOf(taskLocal.getResponsaveis())
                 : List.of();
 
-        // 1. Prazo (com validação de permissão CHANGE_DEADLINE)
         String currentPrazoStr = oldPrazo != null ? oldPrazo.toString() : "";
         String incomingPrazoStr = data.prazo() != null ? data.prazo().trim() : currentPrazoStr;
+        boolean deadlineChanged = !incomingPrazoStr.equals(currentPrazoStr);
+        boolean titleChanged = data.titulo() != null && !Objects.equals(oldTitle, data.titulo());
+        boolean descriptionChanged = data.descricao() != null
+                && !Objects.equals(oldDescription != null ? oldDescription : "", data.descricao());
+        boolean priorityChanged = data.prioridade() != null
+                && !data.prioridade().trim().isEmpty()
+                && oldPriority != TaskEntity.Prioridade.valueOf(data.prioridade().toLowerCase());
+        boolean assigneesChanged = false;
+        if (data.idsResponsaveis() != null) {
+            Set<Long> incomingIds = new HashSet<>(data.idsResponsaveis());
+            Set<Long> currentIds = oldResponsaveis.stream().map(UserEntity::getId).collect(Collectors.toSet());
+            assigneesChanged = !currentIds.equals(incomingIds);
+        }
+        boolean statusChanged = data.status() != null
+                && !data.status().trim().isEmpty()
+                && oldStatus != TaskEntity.Status.valueOf(data.status().toLowerCase());
 
-        if (!incomingPrazoStr.equals(currentPrazoStr)) {
+        boolean contentChanged = deadlineChanged || titleChanged || descriptionChanged || priorityChanged || assigneesChanged;
+
+        // Validar permissão de edição de conteúdo (ou submissão sem alteração de status)
+        if (contentChanged || !statusChanged) {
+            boolean canEdit = isAboveMemberInTaskOrg(userLogado, taskLocal)
+                    || organizationService.canEditTask(userLogado, taskLocal);
+            if (!canEdit) {
+                throw new SecurityException("Você não tem permissão para alterar esta tarefa.");
+            }
+        }
+
+        // 1. Prazo (com validação de permissão CHANGE_DEADLINE)
+        if (deadlineChanged) {
             if (!organizationService.hasPermissionTo(userLogado, orgId, "CHANGE_DEADLINE")) {
                 throw new SecurityException("Você não tem permissão para alterar o prazo de tasks.");
             }
@@ -178,9 +216,16 @@ public class TaskService {
             );
         }
 
-        // 2. Status (com validação de permissão RETURN_TASK)
+        // 2. Status (com validação de permissão de movimentação e RETURN_TASK)
         if (data.status() != null && !data.status().trim().isEmpty()) {
             TaskEntity.Status novoStatus = TaskEntity.Status.valueOf(data.status().toLowerCase());
+            if (oldStatus != novoStatus) {
+                boolean canMove = isAboveMemberInTaskOrg(userLogado, taskLocal)
+                        || organizationService.canMoveTask(userLogado, taskLocal);
+                if (!canMove) {
+                    throw new SecurityException("Você não tem permissão para mover o status desta tarefa.");
+                }
+            }
             if (oldStatus == TaskEntity.Status.concluida && novoStatus != TaskEntity.Status.concluida) {
                 if (!organizationService.hasPermissionTo(userLogado, orgId, "RETURN_TASK")) {
                     throw new SecurityException("Você não tem permissão para retornar tasks concluídas.");
@@ -277,6 +322,12 @@ public class TaskService {
         TaskEntity.Status statusEnum = TaskEntity.Status.valueOf(novoStatus.toLowerCase());
         if (taskLocal.getStatus() == statusEnum) {
             return;
+        }
+
+        boolean canMove = isAboveMemberInTaskOrg(userLogado, taskLocal)
+                || organizationService.canMoveTask(userLogado, taskLocal);
+        if (!canMove) {
+            throw new SecurityException("Você não tem permissão para mover o status desta tarefa.");
         }
         
         // Se estiver retornando para um status anterior (ex: concluida -> pendente)

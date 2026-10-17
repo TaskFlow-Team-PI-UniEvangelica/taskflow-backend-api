@@ -32,6 +32,18 @@ public class OrganizationEntity {
     @Column(name = "members_can_delete_own_tasks", nullable = false)
     private boolean membersCanDeleteOwnTasks = false;
 
+    @Column(name = "members_can_edit_all_tasks", nullable = false)
+    private boolean membersCanEditAllTasks = false;
+
+    @Column(name = "members_can_edit_own_or_assigned_tasks", nullable = false)
+    private boolean membersCanEditOwnOrAssignedTasks = true;
+
+    @Column(name = "members_can_move_all_tasks", nullable = false)
+    private boolean membersCanMoveAllTasks = false;
+
+    @Column(name = "members_can_move_own_or_assigned_tasks", nullable = false)
+    private boolean membersCanMoveOwnOrAssignedTasks = true;
+
     @Column(name = "members_can_change_deadlines", nullable = false)
     private boolean membersCanChangeDeadlines = false;
 

@@ -20,6 +20,18 @@ public record OrganizationResponseDTO(
         @Schema(description = "Indica se membros podem excluir apenas tarefas criadas por eles mesmos")
         Boolean membersCanDeleteOwnTasks,
 
+        @Schema(description = "Indica se membros podem editar qualquer tarefa da organização")
+        Boolean membersCanEditAllTasks,
+
+        @Schema(description = "Indica se membros podem editar apenas tarefas criadas por eles ou nas quais sejam responsáveis")
+        Boolean membersCanEditOwnOrAssignedTasks,
+
+        @Schema(description = "Indica se membros podem mover qualquer tarefa da organização")
+        Boolean membersCanMoveAllTasks,
+
+        @Schema(description = "Indica se membros podem mover apenas tarefas criadas por eles ou nas quais sejam responsáveis")
+        Boolean membersCanMoveOwnOrAssignedTasks,
+
         @Schema(description = "Indica se membros podem alterar o prazo de entrega das tarefas")
         Boolean membersCanChangeDeadlines,
 
@@ -51,10 +63,44 @@ public record OrganizationResponseDTO(
             criadoEm,
             membersCanDeleteTasks,
             false,
+            false,
+            true,
+            false,
+            true,
             membersCanChangeDeadlines,
             membersCanReturnTasks,
             membersCanCreateTasks,
             7,
+            myRole
+        );
+    }
+
+    public OrganizationResponseDTO(
+            Long id,
+            String nome,
+            LocalDateTime criadoEm,
+            Boolean membersCanDeleteTasks,
+            Boolean membersCanDeleteOwnTasks,
+            Boolean membersCanChangeDeadlines,
+            Boolean membersCanReturnTasks,
+            Boolean membersCanCreateTasks,
+            Integer deletedTasksRetentionDays,
+            String myRole
+    ) {
+        this(
+            id,
+            nome,
+            criadoEm,
+            membersCanDeleteTasks,
+            membersCanDeleteOwnTasks,
+            false,
+            true,
+            false,
+            true,
+            membersCanChangeDeadlines,
+            membersCanReturnTasks,
+            membersCanCreateTasks,
+            deletedTasksRetentionDays,
             myRole
         );
     }

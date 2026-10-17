@@ -65,15 +65,9 @@ public class OrganizationService {
         }
     }
 
-    /**
-     * Verifica se o usuário pode excluir uma tarefa específica, considerando:
-     * - Cargos acima de MEMBER (OWNER, SUB_OWNER, MANAGER) sempre podem excluir qualquer tarefa.
-     * - Cargo MEMBER pode excluir qualquer tarefa se membersCanDeleteTasks=true,
-     *   ou pode excluir apenas tarefas criadas por ele mesmo se membersCanCreateTasks=true e membersCanDeleteOwnTasks=true.
-     */
-    public boolean canDeleteTask(UserEntity user, TaskEntity task) {
+    private OrganizationMemberEntity resolveMembership(UserEntity user, TaskEntity task) {
         if (user == null || task == null || task.getOrganization() == null) {
-            return false;
+            return null;
         }
         Long orgId = task.getOrganization().getId();
         OrganizationMemberEntity member = organizationMemberRepository
@@ -86,7 +80,32 @@ public class OrganizationService {
                     .findFirst()
                     .orElse(null);
         }
+        return member;
+    }
 
+    private boolean isCreatorOrAssignee(UserEntity user, TaskEntity task) {
+        if (user == null || user.getId() == null || task == null) {
+            return false;
+        }
+        boolean isCreator = task.getCriador() != null
+                && task.getCriador().getId() != null
+                && Objects.equals(task.getCriador().getId(), user.getId());
+        if (isCreator) {
+            return true;
+        }
+        return task.getResponsaveis() != null
+                && task.getResponsaveis().stream()
+                    .anyMatch(r -> r != null && Objects.equals(r.getId(), user.getId()));
+    }
+
+    /**
+     * Verifica se o usuário pode excluir uma tarefa específica, considerando:
+     * - Cargos acima de MEMBER (OWNER, SUB_OWNER, MANAGER) sempre podem excluir qualquer tarefa.
+     * - Cargo MEMBER pode excluir qualquer tarefa se membersCanDeleteTasks=true,
+     *   ou pode excluir apenas tarefas criadas por ele mesmo se membersCanCreateTasks=true e membersCanDeleteOwnTasks=true.
+     */
+    public boolean canDeleteTask(UserEntity user, TaskEntity task) {
+        OrganizationMemberEntity member = resolveMembership(user, task);
         if (member == null) {
             return false;
         }
@@ -111,6 +130,66 @@ public class OrganizationService {
         return false;
     }
 
+    /**
+     * Verifica se o usuário pode editar os dados de uma tarefa específica:
+     * - Cargos acima de MEMBER (OWNER, SUB_OWNER, MANAGER) sempre podem editar qualquer tarefa.
+     * - Cargo MEMBER pode editar qualquer tarefa se membersCanEditAllTasks=true,
+     *   ou pode editar apenas tarefas que criou ou nas quais é responsável se membersCanEditOwnOrAssignedTasks=true.
+     */
+    public boolean canEditTask(UserEntity user, TaskEntity task) {
+        OrganizationMemberEntity member = resolveMembership(user, task);
+        if (member == null) {
+            return false;
+        }
+
+        OrganizationRole role = member.getRole();
+        OrganizationEntity org = member.getOrganization() != null ? member.getOrganization() : task.getOrganization();
+
+        if (role == OrganizationRole.OWNER || role == OrganizationRole.SUB_OWNER || role == OrganizationRole.MANAGER) {
+            return true;
+        }
+
+        if (org.isMembersCanEditAllTasks()) {
+            return true;
+        }
+
+        if (org.isMembersCanEditOwnOrAssignedTasks()) {
+            return isCreatorOrAssignee(user, task);
+        }
+
+        return false;
+    }
+
+    /**
+     * Verifica se o usuário pode mover o status de uma tarefa específica:
+     * - Cargos acima de MEMBER (OWNER, SUB_OWNER, MANAGER) sempre podem mover qualquer tarefa.
+     * - Cargo MEMBER pode mover qualquer tarefa se membersCanMoveAllTasks=true,
+     *   ou pode mover apenas tarefas que criou ou nas quais é responsável se membersCanMoveOwnOrAssignedTasks=true.
+     */
+    public boolean canMoveTask(UserEntity user, TaskEntity task) {
+        OrganizationMemberEntity member = resolveMembership(user, task);
+        if (member == null) {
+            return false;
+        }
+
+        OrganizationRole role = member.getRole();
+        OrganizationEntity org = member.getOrganization() != null ? member.getOrganization() : task.getOrganization();
+
+        if (role == OrganizationRole.OWNER || role == OrganizationRole.SUB_OWNER || role == OrganizationRole.MANAGER) {
+            return true;
+        }
+
+        if (org.isMembersCanMoveAllTasks()) {
+            return true;
+        }
+
+        if (org.isMembersCanMoveOwnOrAssignedTasks()) {
+            return isCreatorOrAssignee(user, task);
+        }
+
+        return false;
+    }
+
     private Integer normalizeRetentionDays(Integer days) {
         if (days == null || days <= 0) {
             return null; // null representa retenção permanente (sem expiração)
@@ -125,10 +204,74 @@ public class OrganizationService {
         if (data.membersCanChangeDeadlines() != null) {
             org.setMembersCanChangeDeadlines(data.membersCanChangeDeadlines());
         }
-        if (data.membersCanReturnTasks() != null) {
-            org.setMembersCanReturnTasks(data.membersCanReturnTasks());
+
+        // 1. Governança de Edição (Mutuamente Exclusiva: Editar Todas vs Editar Próprias/Responsável)
+        if (Boolean.TRUE.equals(data.membersCanEditAllTasks()) && Boolean.TRUE.equals(data.membersCanEditOwnOrAssignedTasks())) {
+            throw new IllegalArgumentException(
+                "As opções de alterar todas as tarefas e alterar apenas tarefas próprias ou nas quais é responsável são mutuamente exclusivas."
+            );
         }
 
+        boolean nextEditAll = data.membersCanEditAllTasks() != null
+                ? data.membersCanEditAllTasks()
+                : org.isMembersCanEditAllTasks();
+        boolean nextEditOwnOrAssigned = data.membersCanEditOwnOrAssignedTasks() != null
+                ? data.membersCanEditOwnOrAssignedTasks()
+                : org.isMembersCanEditOwnOrAssignedTasks();
+
+        if (Boolean.TRUE.equals(data.membersCanEditAllTasks())) {
+            nextEditAll = true;
+            nextEditOwnOrAssigned = false;
+        } else if (Boolean.TRUE.equals(data.membersCanEditOwnOrAssignedTasks())) {
+            nextEditOwnOrAssigned = true;
+            nextEditAll = false;
+        }
+
+        org.setMembersCanEditAllTasks(nextEditAll);
+        org.setMembersCanEditOwnOrAssignedTasks(nextEditOwnOrAssigned);
+
+        // 2. Governança de Movimentação (Mutuamente Exclusiva: Mover Todas vs Mover Próprias/Responsável)
+        if (Boolean.TRUE.equals(data.membersCanMoveAllTasks()) && Boolean.TRUE.equals(data.membersCanMoveOwnOrAssignedTasks())) {
+            throw new IllegalArgumentException(
+                "As opções de mover todas as tarefas e mover apenas tarefas próprias ou nas quais é responsável são mutuamente exclusivas."
+            );
+        }
+
+        boolean nextMoveAll = data.membersCanMoveAllTasks() != null
+                ? data.membersCanMoveAllTasks()
+                : org.isMembersCanMoveAllTasks();
+        boolean nextMoveOwnOrAssigned = data.membersCanMoveOwnOrAssignedTasks() != null
+                ? data.membersCanMoveOwnOrAssignedTasks()
+                : org.isMembersCanMoveOwnOrAssignedTasks();
+
+        if (Boolean.TRUE.equals(data.membersCanMoveAllTasks())) {
+            nextMoveAll = true;
+            nextMoveOwnOrAssigned = false;
+        } else if (Boolean.TRUE.equals(data.membersCanMoveOwnOrAssignedTasks())) {
+            nextMoveOwnOrAssigned = true;
+            nextMoveAll = false;
+        }
+
+        org.setMembersCanMoveAllTasks(nextMoveAll);
+        org.setMembersCanMoveOwnOrAssignedTasks(nextMoveOwnOrAssigned);
+
+        // 3. Governança de Retorno de Tarefas Concluídas (Depende de ao menos uma opção de movimentação estar ligada)
+        boolean anyMoveEnabled = nextMoveAll || nextMoveOwnOrAssigned;
+        if (!anyMoveEnabled && Boolean.TRUE.equals(data.membersCanReturnTasks())) {
+            throw new IllegalArgumentException(
+                "Para permitir que membros retornem tarefas concluídas, ao menos uma opção de movimentação de tarefas deve estar ligada."
+            );
+        }
+
+        boolean nextReturnTasks = data.membersCanReturnTasks() != null
+                ? data.membersCanReturnTasks()
+                : org.isMembersCanReturnTasks();
+        if (!anyMoveEnabled) {
+            nextReturnTasks = false;
+        }
+        org.setMembersCanReturnTasks(nextReturnTasks);
+
+        // 4. Governança de Exclusão (Mutuamente Exclusiva e Dependente de Criar Tarefas)
         boolean nextDeleteAll = data.membersCanDeleteTasks() != null
                 ? data.membersCanDeleteTasks()
                 : org.isMembersCanDeleteTasks();
@@ -142,7 +285,6 @@ public class OrganizationService {
             );
         }
 
-        // Se o payload ligou uma das duas opções, desliga automaticamente a outra
         if (Boolean.TRUE.equals(data.membersCanDeleteTasks())) {
             nextDeleteAll = true;
             nextDeleteOwn = false;
@@ -156,7 +298,6 @@ public class OrganizationService {
             nextDeleteAll = false;
         }
 
-        // Se criar tarefas estiver desligado, a exclusão de tarefas próprias fica obrigatoriamente desligada
         if (!org.isMembersCanCreateTasks()) {
             nextDeleteOwn = false;
         }
@@ -437,6 +578,10 @@ public class OrganizationService {
                 org.getCriadoEm(),
                 org.isMembersCanDeleteTasks(),
                 org.isMembersCanDeleteOwnTasks(),
+                org.isMembersCanEditAllTasks(),
+                org.isMembersCanEditOwnOrAssignedTasks(),
+                org.isMembersCanMoveAllTasks(),
+                org.isMembersCanMoveOwnOrAssignedTasks(),
                 org.isMembersCanChangeDeadlines(),
                 org.isMembersCanReturnTasks(),
                 org.isMembersCanCreateTasks(),
