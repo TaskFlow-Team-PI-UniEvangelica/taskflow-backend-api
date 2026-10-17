@@ -14,7 +14,10 @@ run:
 # sobe o ambiente de Desenvolvimento
 # sobe SOMENTE a Infraestrutura de Dev (Sem a API) para você rodar o Java na IDE
 run-dev-infra:
-	docker compose up keycloak mailpit pgadmin -d
+	docker compose up keycloak mailpit pgadmin
+
+run-dev-infra-db:
+	docker compose up db keycloak_db keycloak mailpit pgadmin
 
 run-dev:
 	docker compose -f docker-compose.dev.yml up --build
@@ -25,8 +28,8 @@ run-dev:
 # ==========================================
 # desliga todos os serviços (ambientes)
 down:
-	docker compose down
-	docker compose -f docker-compose.prod.yml down
+	docker compose down --remove-orphans
+	docker compose -f docker-compose.prod.yml down --remove-orphans
 
 
 # ==========================================
@@ -54,7 +57,7 @@ down-db-keycloak:
 # ==========================================
 # derruba o ambiente de Dev inteiro e apaga todos os bancos de Dev
 down-db-all-dev:
-	docker compose down -v
+	docker compose down --remove-orphans -v
 
 # derruba apenas o contêiner da API de Dev e apaga o seu banco
 down-db-api-dev:
