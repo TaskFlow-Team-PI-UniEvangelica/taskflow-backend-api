@@ -1,4 +1,4 @@
-.PHONY: test run run-dev down down-db down-db-dev down-db-all down-db-all-dev down-db-api down-db-api-dev down-db-keycloak down-db-keycloak-dev clean clean-dev logs logs-dev terminal terminal-dev
+.PHONY: test run run-dev run-dev-infra run-dev-infra-db down down-db down-db-dev down-db-all down-db-all-dev down-db-api down-db-api-dev down-db-keycloak down-db-keycloak-dev clean clean-dev logs logs-dev terminal terminal-dev
 
 # executa testes unitários
 test:
@@ -14,10 +14,10 @@ run:
 # sobe o ambiente de Desenvolvimento
 # sobe SOMENTE a Infraestrutura de Dev (Sem a API) para você rodar o Java na IDE
 run-dev-infra:
-	docker compose up keycloak mailpit pgadmin
+	docker compose -f docker-compose.dev.yml up keycloak mailpit pgadmin
 
 run-dev-infra-db:
-	docker compose up db keycloak_db keycloak mailpit pgadmin
+	docker compose -f docker-compose.dev.yml up db keycloak_db keycloak mailpit pgadmin
 
 run-dev:
 	docker compose -f docker-compose.dev.yml up --build
@@ -29,7 +29,7 @@ run-dev:
 # desliga todos os serviços (ambientes)
 down:
 	docker compose down --remove-orphans
-	docker compose -f docker-compose.prod.yml down --remove-orphans
+	docker compose -f docker-compose.dev.yml down --remove-orphans
 
 
 # ==========================================
@@ -38,7 +38,7 @@ down:
 # ==========================================
 # derruba o ambiente de Prod inteiro e apaga todos os bancos de Prod
 down-db-all:
-	docker compose -f docker-compose.prod.yml down -v
+	docker compose down --remove-orphans -v
 
 # derruba apenas o contêiner da API de Prod e apaga o seu banco
 down-db-api:
@@ -57,7 +57,7 @@ down-db-keycloak:
 # ==========================================
 # derruba o ambiente de Dev inteiro e apaga todos os bancos de Dev
 down-db-all-dev:
-	docker compose down --remove-orphans -v
+	docker compose -f docker-compose.dev.yml down --remove-orphans -v
 
 # derruba apenas o contêiner da API de Dev e apaga o seu banco
 down-db-api-dev:
@@ -74,16 +74,16 @@ down-db-keycloak-dev:
 # LIMPEZA PROFUNDA E LOGS
 # ==========================================
 clean:
-	docker compose -f docker-compose.prod.yml down --rmi all
-
-clean-dev:
 	docker compose down --rmi all
 
+clean-dev:
+	docker compose -f docker-compose.dev.yml down --rmi all
+
 logs:
-	docker compose -f docker-compose.prod.yml logs -f
+	docker compose logs -f
 
 logs-dev:
-	docker compose logs -f
+	docker compose -f docker-compose.dev.yml logs -f
 
 terminal:
 	docker exec -it taskflow_api_prod bash
