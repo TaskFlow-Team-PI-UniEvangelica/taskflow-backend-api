@@ -72,8 +72,15 @@ public class UserController {
     @ApiResponse(responseCode = "200", description = "Usuário atualizado com sucesso")
     @PutMapping("/{id}")
     public ResponseEntity<UserResponseDTO> atualizarUsuario(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "ID do usuário a ser atualizado") @PathVariable Long id, 
             @RequestBody UserRequestDTO data){
+        if (jwt != null) {
+            UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
+            if (!userLogado.getId().equals(id)) {
+                throw new SecurityException("Você só pode atualizar o seu próprio perfil.");
+            }
+        }
         UserResponseDTO usuarioAtualizado = userService.atualizarUsuario(id, data);
         return ResponseEntity.ok(usuarioAtualizado);
     }
@@ -81,7 +88,15 @@ public class UserController {
     @Operation(summary = "Deletar usuário por ID")
     @ApiResponse(responseCode = "204", description = "Usuário deletado sem conteúdo de retorno")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletarUsuario(@Parameter(description = "ID do usuário") @PathVariable Long id){
+    public ResponseEntity<Void> deletarUsuario(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = "ID do usuário") @PathVariable Long id){
+        if (jwt != null) {
+            UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
+            if (!userLogado.getId().equals(id)) {
+                throw new SecurityException("Você só pode excluir a sua própria conta.");
+            }
+        }
         userService.deletarUsuario(id);
         return ResponseEntity.noContent().build();
     }
@@ -108,6 +123,7 @@ public class UserController {
         }
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, user.getAvatarType() != null ? user.getAvatarType() : "image/jpeg")
+                .header("X-Content-Type-Options", "nosniff")
                 .body(user.getAvatar());
     }
 

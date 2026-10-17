@@ -79,10 +79,21 @@ public class UserService {
         return userRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
     }
 
+    private static final java.util.Set<String> ALLOWED_AVATAR_TYPES = java.util.Set.of(
+            "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"
+    );
+
     @Transactional
     public void updateAvatar(String keycloakId, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("Arquivo de imagem vazio ou inválido.");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !ALLOWED_AVATAR_TYPES.contains(contentType.toLowerCase())) {
+            throw new IllegalArgumentException("Formato de imagem não suportado. Use JPEG, PNG, WEBP ou GIF.");
+        }
         try {
-            userRepository.updateAvatar(keycloakId, file.getBytes(), file.getContentType());
+            userRepository.updateAvatar(keycloakId, file.getBytes(), contentType.toLowerCase());
         } catch (IOException e) {
             throw new RuntimeException("Erro ao processar imagem", e);
         }

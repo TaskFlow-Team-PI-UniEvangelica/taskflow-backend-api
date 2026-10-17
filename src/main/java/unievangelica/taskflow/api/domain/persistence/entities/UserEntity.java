@@ -28,6 +28,7 @@ public class UserEntity {
 
     @Column(name = "keycloakId", unique = true)
     private String keycloakId;
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "avatar")
     private byte[] avatar;
 

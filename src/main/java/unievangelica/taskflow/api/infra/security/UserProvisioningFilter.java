@@ -42,24 +42,41 @@ public class UserProvisioningFilter extends OncePerRequestFilter {
         String keycloakId = jwt.getSubject();
         
         if (userRepository.findByKeycloakId(keycloakId).isEmpty()) {
+            String email = jwt.getClaimAsString("email");
+            if (email != null) {
+                var existingByEmail = userRepository.findByEmail(email);
+                if (existingByEmail.isPresent()) {
+                    UserEntity existing = existingByEmail.get();
+                    existing.setKeycloakId(keycloakId);
+                    userRepository.save(existing);
+                    return;
+                }
+            }
+
             UserEntity newUser = new UserEntity();
             newUser.setKeycloakId(keycloakId);
             
             String givenName = jwt.getClaimAsString("given_name");
             String familyName = jwt.getClaimAsString("family_name");
-            String name = (givenName != null ? givenName : "") + (familyName != null ? " " + familyName : "");
+            String name = ((givenName != null ? givenName : "") + (familyName != null ? " " + familyName : "")).trim();
             
-            if (name.trim().isEmpty()) {
-                name = jwt.getClaimAsString("preferred_username");
+            if (name.isEmpty()) {
+                String preferred = jwt.getClaimAsString("preferred_username");
+                name = preferred != null ? preferred.trim() : "";
             }
-            if (name == null || name.trim().isEmpty()) {
+            if (name.isEmpty()) {
                 name = "Novo Usuário";
             }
             
             newUser.setNome(name);
-            newUser.setEmail(jwt.getClaimAsString("email"));
+            newUser.setEmail(email);
             
-            userRepository.save(newUser);
+            try {
+                userRepository.save(newUser);
+            } catch (Exception ignored) {
+                // Em caso de requisições simultâneas no primeiro login (race condition),
+                // a primeira requisição já persistiu o usuário.
+            }
         }
     }
 }
