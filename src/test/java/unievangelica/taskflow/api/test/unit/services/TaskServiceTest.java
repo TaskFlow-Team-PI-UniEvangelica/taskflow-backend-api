@@ -181,6 +181,8 @@ public class TaskServiceTest {
         taskConcluida.setOrganization(org);
 
         when(taskRepository.findTaskById(50L)).thenReturn(Optional.of(taskConcluida));
+        when(organizationService.canEditTask(member, taskConcluida)).thenReturn(true);
+        when(organizationService.canMoveTask(member, taskConcluida)).thenReturn(true);
         when(organizationService.hasPermissionTo(member, 10L, "RETURN_TASK")).thenReturn(false);
 
         TaskRequestDTO dto = new TaskRequestDTO("Task Concluída", "Desc", "pendente", "media", null, null, 10L);
@@ -368,5 +370,59 @@ public class TaskServiceTest {
 
         assertThrows(SecurityException.class, () -> taskService.atualizarStatusTask(5L, "em_andamento", estranho));
         verify(taskRepository, never()).updateTaskStatus(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Deve bloquear edição de tarefa por MEMBER quando canEditTask retornar false")
+    void testarAtualizarTaskBloqueiaMemberSemPermissaoEdicao() {
+        UserEntity member = new UserEntity();
+        member.setId(2L);
+        member.setNome("Member");
+
+        OrganizationEntity org = buildOrgWithMember(10L, member, OrganizationRole.MEMBER);
+
+        TaskEntity taskAlheia = new TaskEntity();
+        taskAlheia.setId(60L);
+        taskAlheia.setTitulo("Task de Outro");
+        taskAlheia.setDescricao("Desc");
+        taskAlheia.setStatus(TaskEntity.Status.pendente);
+        taskAlheia.setPrioridade(TaskEntity.Prioridade.media);
+        taskAlheia.setOrganization(org);
+
+        when(taskRepository.findTaskById(60L)).thenReturn(Optional.of(taskAlheia));
+        when(organizationService.canEditTask(member, taskAlheia)).thenReturn(false);
+
+        TaskRequestDTO dto = new TaskRequestDTO("Tentando Editar", "Desc", "pendente", "media", null, null, 10L);
+
+        assertThrows(SecurityException.class, () -> taskService.atualizarTask(60L, dto, member));
+    }
+
+    @Test
+    @DisplayName("Deve bloquear movimentação no Kanban por MEMBER quando canMoveTask retornar false e permitir quando true")
+    void testarAtualizarStatusTaskRespeitaCanMoveTaskParaMember() {
+        UserEntity member = new UserEntity();
+        member.setId(2L);
+        member.setNome("Member");
+
+        OrganizationEntity org = buildOrgWithMember(10L, member, OrganizationRole.MEMBER);
+
+        TaskEntity task = new TaskEntity();
+        task.setId(61L);
+        task.setTaskNumber(2);
+        task.setTitulo("Task Kanban");
+        task.setStatus(TaskEntity.Status.pendente);
+        task.setOrganization(org);
+
+        when(taskRepository.findTaskById(61L)).thenReturn(Optional.of(task));
+
+        // 1. Bloqueado quando canMoveTask = false
+        when(organizationService.canMoveTask(member, task)).thenReturn(false);
+        assertThrows(SecurityException.class, () -> taskService.atualizarStatusTask(61L, "em_andamento", member));
+        verify(taskRepository, never()).updateTaskStatus(anyLong(), any());
+
+        // 2. Permitido quando canMoveTask = true
+        when(organizationService.canMoveTask(member, task)).thenReturn(true);
+        taskService.atualizarStatusTask(61L, "em_andamento", member);
+        verify(taskRepository, times(1)).updateTaskStatus(61L, TaskEntity.Status.em_andamento);
     }
 }

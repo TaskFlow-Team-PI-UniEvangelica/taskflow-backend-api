@@ -133,6 +133,114 @@ public class OrganizationServiceTest {
     }
 
     @Test
+    @DisplayName("Deve bloquear ativação simultânea de alterar todas as tasks e alterar apenas próprias/responsável")
+    void testBloqueiaEdicaoMutuamenteExclusiva() {
+        OrganizationRequestDTO invalidRequest = new OrganizationRequestDTO(
+                "Org Edição Inválida",
+                false,
+                false,
+                true,
+                true,
+                false,
+                true,
+                false,
+                false,
+                true,
+                7
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            organizationService.criarOrganizacao(invalidRequest, owner);
+        });
+    }
+
+    @Test
+    @DisplayName("Deve bloquear ativação simultânea de mover todas as tasks e mover apenas próprias/responsável")
+    void testBloqueiaMovimentacaoMutuamenteExclusiva() {
+        OrganizationRequestDTO invalidRequest = new OrganizationRequestDTO(
+                "Org Movimentação Inválida",
+                false,
+                false,
+                false,
+                true,
+                true,
+                true,
+                false,
+                false,
+                true,
+                7
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            organizationService.criarOrganizacao(invalidRequest, owner);
+        });
+    }
+
+    @Test
+    @DisplayName("Deve bloquear ativação de retornar tasks concluídas se ambas as opções de movimentação estiverem desligadas")
+    void testBloqueiaRetornarTasksSemOpcaoDeMoverLigada() {
+        OrganizationRequestDTO invalidRequest = new OrganizationRequestDTO(
+                "Org Retorno Sem Mover",
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                false,
+                true,
+                true,
+                7
+        );
+
+        assertThrows(IllegalArgumentException.class, () -> {
+            organizationService.criarOrganizacao(invalidRequest, owner);
+        });
+    }
+
+    @Test
+    @DisplayName("canEditTask e canMoveTask: MEMBER pode editar e mover tasks que criou ou onde é responsável, mas não de terceiros")
+    void testCanEditAndMoveTaskMemberCriadorOuResponsavel() {
+        organization.setMembersCanEditAllTasks(false);
+        organization.setMembersCanEditOwnOrAssignedTasks(true);
+        organization.setMembersCanMoveAllTasks(false);
+        organization.setMembersCanMoveOwnOrAssignedTasks(true);
+
+        OrganizationMemberEntity membership = new OrganizationMemberEntity();
+        membership.setUser(member);
+        membership.setOrganization(organization);
+        membership.setRole(OrganizationRole.MEMBER);
+
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(10L, 2L))
+                .thenReturn(Optional.of(membership));
+
+        TaskEntity createdByMemberTask = new TaskEntity();
+        createdByMemberTask.setId(201L);
+        createdByMemberTask.setOrganization(organization);
+        createdByMemberTask.setCriador(member);
+
+        TaskEntity assignedToMemberTask = new TaskEntity();
+        assignedToMemberTask.setId(202L);
+        assignedToMemberTask.setOrganization(organization);
+        assignedToMemberTask.setCriador(owner);
+        assignedToMemberTask.setResponsaveis(java.util.List.of(member));
+
+        TaskEntity unrelatedTask = new TaskEntity();
+        unrelatedTask.setId(203L);
+        unrelatedTask.setOrganization(organization);
+        unrelatedTask.setCriador(owner);
+        unrelatedTask.setResponsaveis(java.util.List.of(owner));
+
+        assertTrue(organizationService.canEditTask(member, createdByMemberTask));
+        assertTrue(organizationService.canEditTask(member, assignedToMemberTask));
+        assertFalse(organizationService.canEditTask(member, unrelatedTask));
+
+        assertTrue(organizationService.canMoveTask(member, createdByMemberTask));
+        assertTrue(organizationService.canMoveTask(member, assignedToMemberTask));
+        assertFalse(organizationService.canMoveTask(member, unrelatedTask));
+    }
+
+    @Test
     @DisplayName("Atualizar Organização: SUB_OWNER não pode alterar a persistência (deletedTasksRetentionDays)")
     void testSubOwnerNaoPodeAlterarRetencaoDeExcluidas() {
         organization.setDeletedTasksRetentionDays(7);
