@@ -20,7 +20,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/organization")
-@Tag(name = "Organizações", description = "Endpoints para gerenciamento de organizações Multi-Tenant e configurações Trello-like")
+@Tag(name = "Organizações", description = "Endpoints para gerenciamento de organizações Multi-Tenant, governança de exclusão e retenção de auditoria")
 public class OrganizationController {
 
     private final OrganizationService organizationService;
@@ -31,8 +31,15 @@ public class OrganizationController {
         this.userService = userService;
     }
 
-    @Operation(summary = "Criar Organização", description = "Cria uma nova organização. O usuário logado automaticamente se torna OWNER.")
-    @ApiResponse(responseCode = "201", description = "Organização criada com sucesso")
+    @Operation(
+        summary = "Criar Organização",
+        description = "Cria uma nova organização com regras de governança. O usuário logado torna-se OWNER. " +
+                      "As flags membersCanDeleteTasks e membersCanDeleteOwnTasks são mutuamente exclusivas, e membersCanDeleteOwnTasks exige membersCanCreateTasks=true."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Organização criada com sucesso"),
+        @ApiResponse(responseCode = "400", description = "Conflito de regras de permissão (ex: exclusão própria sem criação ligada ou ambas exclusões ligadas)")
+    })
     @PostMapping
     public ResponseEntity<OrganizationResponseDTO> criarOrganizacao(
             @RequestBody OrganizationRequestDTO data,
@@ -42,7 +49,7 @@ public class OrganizationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(novaOrg);
     }
 
-    @Operation(summary = "Listar minhas organizações", description = "Retorna todas as organizações das quais o usuário logado faz parte, bem como a sua Role em cada uma.")
+    @Operation(summary = "Listar minhas organizações", description = "Retorna todas as organizações das quais o usuário logado faz parte, bem como a sua Role e as configurações vigentes em cada uma.")
     @ApiResponse(responseCode = "200", description = "Lista de organizações retornada com sucesso")
     @GetMapping("/me")
     public ResponseEntity<List<OrganizationResponseDTO>> listarMinhasOrganizacoes(
@@ -52,10 +59,15 @@ public class OrganizationController {
         return ResponseEntity.ok(organizacoes);
     }
 
-    @Operation(summary = "Atualizar configurações da organização", description = "Atualiza nome e configurações de permissões dinâmicas. Requer papel OWNER ou SUB_OWNER.")
+    @Operation(
+        summary = "Atualizar configurações da organização",
+        description = "Atualiza nome e configurações de permissões dinâmicas (requer OWNER ou SUB_OWNER). " +
+                      "A alteração de deletedTasksRetentionDays (retenção do histórico de tasks excluídas) é exclusiva do OWNER."
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Configurações atualizadas"),
-            @ApiResponse(responseCode = "403", description = "Usuário não possui privilégios de OWNER/SUB_OWNER"),
+            @ApiResponse(responseCode = "400", description = "Regras de exclusão mutuamente exclusivas violadas"),
+            @ApiResponse(responseCode = "403", description = "Usuário não possui privilégios de OWNER/SUB_OWNER ou tentou alterar retenção sem ser OWNER"),
             @ApiResponse(responseCode = "404", description = "Organização não encontrada")
     })
     @PutMapping("/{id}")
@@ -79,7 +91,7 @@ public class OrganizationController {
         return ResponseEntity.ok(membros);
     }
 
-    @Operation(summary = "Adicionar membro", description = "Adiciona um usuário à organização. Requer privilégio OWNER ou SUB_OWNER.")
+    @Operation(summary = "Adicionar membro", description = "Adiciona um usuário à organização. Requer privilégio OWNER, SUB_OWNER ou MANAGER.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Membro adicionado com sucesso"),
             @ApiResponse(responseCode = "403", description = "Sem permissão para gerenciar membros ou atribuir o papel solicitado")
@@ -114,6 +126,7 @@ public class OrganizationController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Transferir posse da organização", description = "Transfere o cargo de OWNER para um SUB_OWNER da organização.")
     @PutMapping("/{id}/members/{userId}/transfer-ownership")
     public ResponseEntity<Void> transferirPosse(
             @Parameter(description = "ID da organização") @PathVariable Long id,

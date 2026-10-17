@@ -20,6 +20,9 @@ public class TaskEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "task_number", nullable = false)
+    private Integer taskNumber = 1;
+
     @Column(nullable = false) // verificações de colunas para garantir que o JPA trate isso como not null
     private String titulo;
 
@@ -55,7 +58,7 @@ public class TaskEntity {
     )
     private List<UserEntity> responsaveis = new ArrayList<>();
 
-    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "task")
     private List<TaskHistoryEntity> history = new ArrayList<>();
 
     // lista com todos os valores presentes no enum

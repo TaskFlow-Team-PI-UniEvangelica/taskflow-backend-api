@@ -29,6 +29,9 @@ public class OrganizationEntity {
     @Column(name = "members_can_delete_tasks", nullable = false)
     private boolean membersCanDeleteTasks = false;
 
+    @Column(name = "members_can_delete_own_tasks", nullable = false)
+    private boolean membersCanDeleteOwnTasks = false;
+
     @Column(name = "members_can_change_deadlines", nullable = false)
     private boolean membersCanChangeDeadlines = false;
 
@@ -37,6 +40,12 @@ public class OrganizationEntity {
 
     @Column(name = "members_can_create_tasks", nullable = false)
     private boolean membersCanCreateTasks = true;
+
+    @Column(name = "deleted_tasks_retention_days")
+    private Integer deletedTasksRetentionDays = 7;
+
+    @Column(name = "last_task_number", nullable = false)
+    private int lastTaskNumber = 0;
 
     @OneToMany(mappedBy = "organization", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrganizationMemberEntity> members = new ArrayList<>();

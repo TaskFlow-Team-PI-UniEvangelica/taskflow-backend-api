@@ -6,6 +6,7 @@ import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberId;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
+import unievangelica.taskflow.api.domain.persistence.entities.TaskEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationRepository;
@@ -14,6 +15,7 @@ import unievangelica.taskflow.api.dto.request.OrganizationRequestDTO;
 import unievangelica.taskflow.api.dto.response.OrganizationResponseDTO;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -63,15 +65,116 @@ public class OrganizationService {
         }
     }
 
+    /**
+     * Verifica se o usuário pode excluir uma tarefa específica, considerando:
+     * - Cargos acima de MEMBER (OWNER, SUB_OWNER, MANAGER) sempre podem excluir qualquer tarefa.
+     * - Cargo MEMBER pode excluir qualquer tarefa se membersCanDeleteTasks=true,
+     *   ou pode excluir apenas tarefas criadas por ele mesmo se membersCanCreateTasks=true e membersCanDeleteOwnTasks=true.
+     */
+    public boolean canDeleteTask(UserEntity user, TaskEntity task) {
+        if (user == null || task == null || task.getOrganization() == null) {
+            return false;
+        }
+        Long orgId = task.getOrganization().getId();
+        OrganizationMemberEntity member = organizationMemberRepository
+                .findByOrganizationIdAndUserId(orgId, user.getId())
+                .orElse(null);
+
+        if (member == null && task.getOrganization().getMembers() != null) {
+            member = task.getOrganization().getMembers().stream()
+                    .filter(m -> m.getUser() != null && Objects.equals(m.getUser().getId(), user.getId()))
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        if (member == null) {
+            return false;
+        }
+
+        OrganizationRole role = member.getRole();
+        OrganizationEntity org = member.getOrganization() != null ? member.getOrganization() : task.getOrganization();
+
+        if (role == OrganizationRole.OWNER || role == OrganizationRole.SUB_OWNER || role == OrganizationRole.MANAGER) {
+            return true;
+        }
+
+        if (org.isMembersCanDeleteTasks()) {
+            return true;
+        }
+
+        if (org.isMembersCanCreateTasks() && org.isMembersCanDeleteOwnTasks()) {
+            return task.getCriador() != null
+                    && task.getCriador().getId() != null
+                    && task.getCriador().getId().equals(user.getId());
+        }
+
+        return false;
+    }
+
+    private Integer normalizeRetentionDays(Integer days) {
+        if (days == null || days <= 0) {
+            return null; // null representa retenção permanente (sem expiração)
+        }
+        return days;
+    }
+
+    private void aplicarEValidarRegrasDeGovernanca(OrganizationEntity org, OrganizationRequestDTO data) {
+        if (data.membersCanCreateTasks() != null) {
+            org.setMembersCanCreateTasks(data.membersCanCreateTasks());
+        }
+        if (data.membersCanChangeDeadlines() != null) {
+            org.setMembersCanChangeDeadlines(data.membersCanChangeDeadlines());
+        }
+        if (data.membersCanReturnTasks() != null) {
+            org.setMembersCanReturnTasks(data.membersCanReturnTasks());
+        }
+
+        boolean nextDeleteAll = data.membersCanDeleteTasks() != null
+                ? data.membersCanDeleteTasks()
+                : org.isMembersCanDeleteTasks();
+        boolean nextDeleteOwn = data.membersCanDeleteOwnTasks() != null
+                ? data.membersCanDeleteOwnTasks()
+                : org.isMembersCanDeleteOwnTasks();
+
+        if (Boolean.TRUE.equals(data.membersCanDeleteTasks()) && Boolean.TRUE.equals(data.membersCanDeleteOwnTasks())) {
+            throw new IllegalArgumentException(
+                "As opções de excluir todas as tarefas e excluir apenas as próprias tarefas são mutuamente exclusivas."
+            );
+        }
+
+        // Se o payload ligou uma das duas opções, desliga automaticamente a outra
+        if (Boolean.TRUE.equals(data.membersCanDeleteTasks())) {
+            nextDeleteAll = true;
+            nextDeleteOwn = false;
+        } else if (Boolean.TRUE.equals(data.membersCanDeleteOwnTasks())) {
+            if (!org.isMembersCanCreateTasks()) {
+                throw new IllegalArgumentException(
+                    "Para permitir que membros excluam suas próprias tarefas, a opção de criar tarefas deve estar obrigatoriamente ligada."
+                );
+            }
+            nextDeleteOwn = true;
+            nextDeleteAll = false;
+        }
+
+        // Se criar tarefas estiver desligado, a exclusão de tarefas próprias fica obrigatoriamente desligada
+        if (!org.isMembersCanCreateTasks()) {
+            nextDeleteOwn = false;
+        }
+
+        org.setMembersCanDeleteTasks(nextDeleteAll);
+        org.setMembersCanDeleteOwnTasks(nextDeleteOwn);
+    }
+
     @Transactional
     public OrganizationResponseDTO criarOrganizacao(OrganizationRequestDTO data, UserEntity criadorLogado) {
         OrganizationEntity novaOrg = new OrganizationEntity();
         novaOrg.setNome(data.nome());
         
-        if (data.membersCanDeleteTasks() != null) novaOrg.setMembersCanDeleteTasks(data.membersCanDeleteTasks());
-        if (data.membersCanChangeDeadlines() != null) novaOrg.setMembersCanChangeDeadlines(data.membersCanChangeDeadlines());
-        if (data.membersCanReturnTasks() != null) novaOrg.setMembersCanReturnTasks(data.membersCanReturnTasks());
-        if (data.membersCanCreateTasks() != null) novaOrg.setMembersCanCreateTasks(data.membersCanCreateTasks());
+        aplicarEValidarRegrasDeGovernanca(novaOrg, data);
+
+        if (data.deletedTasksRetentionDays() != null) {
+            novaOrg.setDeletedTasksRetentionDays(normalizeRetentionDays(data.deletedTasksRetentionDays()));
+        }
 
         OrganizationEntity orgSalva = organizationRepository.save(novaOrg);
 
@@ -96,15 +199,26 @@ public class OrganizationService {
         OrganizationEntity org = organizationRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
 
+        OrganizationMemberEntity member = organizationMemberRepository
+                .findByOrganizationIdAndUserId(id, userLogado.getId())
+                .orElseThrow(() -> new SecurityException("Você não pertence a esta organização."));
+
         if (data.nome() != null) org.setNome(data.nome());
-        if (data.membersCanDeleteTasks() != null) org.setMembersCanDeleteTasks(data.membersCanDeleteTasks());
-        if (data.membersCanChangeDeadlines() != null) org.setMembersCanChangeDeadlines(data.membersCanChangeDeadlines());
-        if (data.membersCanReturnTasks() != null) org.setMembersCanReturnTasks(data.membersCanReturnTasks());
-        if (data.membersCanCreateTasks() != null) org.setMembersCanCreateTasks(data.membersCanCreateTasks());
+
+        aplicarEValidarRegrasDeGovernanca(org, data);
+
+        if (data.deletedTasksRetentionDays() != null) {
+            Integer normalizedNewRetention = normalizeRetentionDays(data.deletedTasksRetentionDays());
+            if (!Objects.equals(org.getDeletedTasksRetentionDays(), normalizedNewRetention)) {
+                if (member.getRole() != OrganizationRole.OWNER) {
+                    throw new SecurityException("Apenas o OWNER da organização pode decidir a persistência do histórico de tarefas excluídas.");
+                }
+                org.setDeletedTasksRetentionDays(normalizedNewRetention);
+            }
+        }
 
         OrganizationEntity orgAtualizada = organizationRepository.save(org);
 
-        OrganizationMemberEntity member = organizationMemberRepository.findByOrganizationIdAndUserId(id, userLogado.getId()).get();
         return converterParaDTO(orgAtualizada, member.getRole());
     }
 
@@ -151,6 +265,10 @@ public class OrganizationService {
         UserEntity novoUsuario = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
 
+        if (organizationMemberRepository.findByOrganizationIdAndUserId(org.getId(), novoUsuario.getId()).isPresent()) {
+            throw new IllegalArgumentException("Este usuário já é membro da organização.");
+        }
+
         OrganizationMemberEntity member = new OrganizationMemberEntity();
         member.setId(new OrganizationMemberId(org.getId(), novoUsuario.getId()));
         member.setOrganization(org);
@@ -173,6 +291,10 @@ public class OrganizationService {
                 .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
         UserEntity novoUsuario = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado com o email informado"));
+
+        if (organizationMemberRepository.findByOrganizationIdAndUserId(org.getId(), novoUsuario.getId()).isPresent()) {
+            throw new IllegalArgumentException("Este usuário já é membro da organização.");
+        }
 
         OrganizationMemberEntity member = new OrganizationMemberEntity();
         member.setId(new OrganizationMemberId(org.getId(), novoUsuario.getId()));
@@ -198,6 +320,15 @@ public class OrganizationService {
         // Impedir que alguém altere o papel do próprio OWNER original ou rebaixe-o
         if (member.getRole() == OrganizationRole.OWNER) {
             throw new SecurityException("Não é permitido alterar o papel do OWNER principal.");
+        }
+
+        OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Você não é membro desta organização."));
+        if (requester.getRole() == OrganizationRole.SUB_OWNER && member.getRole() == OrganizationRole.SUB_OWNER) {
+            throw new SecurityException("SUB_OWNER não pode alterar o papel de outro SUB_OWNER.");
+        }
+        if (requester.getRole() == OrganizationRole.MANAGER && member.getRole() != OrganizationRole.MEMBER) {
+            throw new SecurityException("MANAGER só pode gerenciar usuários com papel MEMBER.");
         }
 
         member.setRole(novoRole);
@@ -262,18 +393,25 @@ public class OrganizationService {
         organizationMemberRepository.delete(memberTarget);
     }
 
-    private void validarHierarquiaDeRoles(UserEntity requester, Long orgId, OrganizationRole roleAlvo) {
-        OrganizationMemberEntity requesterMember = organizationMemberRepository.findByOrganizationIdAndUserId(orgId, requester.getId()).get();
+    public void validarHierarquiaDeRoles(UserEntity requester, Long orgId, OrganizationRole roleAlvo) {
+        if (roleAlvo == OrganizationRole.OWNER) {
+            throw new SecurityException("O papel de OWNER só pode ser atribuído via transferência de posse.");
+        }
+
+        OrganizationMemberEntity requesterMember = organizationMemberRepository.findByOrganizationIdAndUserId(orgId, requester.getId())
+                .orElseThrow(() -> new SecurityException("Você não pertence a esta organização."));
         OrganizationRole requesterRole = requesterMember.getRole();
 
         if (requesterRole == OrganizationRole.SUB_OWNER) {
-            if (roleAlvo == OrganizationRole.OWNER || roleAlvo == OrganizationRole.SUB_OWNER) {
+            if (roleAlvo == OrganizationRole.SUB_OWNER) {
                 throw new SecurityException("SUB_OWNER só pode gerenciar os papéis MANAGER e MEMBER.");
             }
         } else if (requesterRole == OrganizationRole.MANAGER) {
             if (roleAlvo != OrganizationRole.MEMBER) {
                 throw new SecurityException("MANAGER só pode gerenciar o papel MEMBER.");
             }
+        } else if (requesterRole == OrganizationRole.MEMBER) {
+            throw new SecurityException("MEMBER não possui permissão para gerenciar papéis.");
         }
     }
 
@@ -298,9 +436,11 @@ public class OrganizationService {
                 org.getNome(),
                 org.getCriadoEm(),
                 org.isMembersCanDeleteTasks(),
+                org.isMembersCanDeleteOwnTasks(),
                 org.isMembersCanChangeDeadlines(),
                 org.isMembersCanReturnTasks(),
                 org.isMembersCanCreateTasks(),
+                org.getDeletedTasksRetentionDays(),
                 role.name()
         );
     }
