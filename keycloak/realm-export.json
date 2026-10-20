@@ -32,11 +32,11 @@
   "registrationAllowed": true,
   "registrationEmailAsUsername": true,
   "rememberMe": false,
-  "verifyEmail": false,
+  "verifyEmail": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "resetPasswordAllowed": true,
-  "editUsernameAllowed": false,
+  "editUsernameAllowed": true,
   "bruteForceProtected": false,
   "permanentLockout": false,
   "maxTemporaryLockouts": 0,
@@ -48,15 +48,6 @@
   "failureFactor": 30,
   "roles": {
     "realm": [
-      {
-        "id": "5bf84614-781d-4f53-bc45-cb712dfbd677",
-        "name": "funcionario",
-        "description": "",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "303e7ed4-b392-4c54-8865-6b8ab56ded80",
-        "attributes": {}
-      },
       {
         "id": "a9c940af-5b24-4395-98a0-9649b0d47de2",
         "name": "offline_access",
@@ -76,15 +67,6 @@
         "attributes": {}
       },
       {
-        "id": "7f6caf07-5613-432d-ac5f-08e2185fd849",
-        "name": "admin",
-        "description": "",
-        "composite": false,
-        "clientRole": false,
-        "containerId": "303e7ed4-b392-4c54-8865-6b8ab56ded80",
-        "attributes": {}
-      },
-      {
         "id": "548d4d52-442e-4a10-aa8f-19a829b1e898",
         "name": "default-roles-taskflow-realm",
         "description": "${role_default-roles}",
@@ -92,7 +74,6 @@
         "composites": {
           "realm": [
             "offline_access",
-            "funcionario",
             "uma_authorization"
           ],
           "client": {
@@ -1415,7 +1396,7 @@
   "loginTheme": "taskflow",
   "accountTheme": "taskflow",
   "adminTheme": "",
-  "emailTheme": "",
+  "emailTheme": "taskflow",
   "eventsEnabled": false,
   "eventsListeners": [
     "jboss-logging"
@@ -1581,6 +1562,17 @@
         "config": {
           "priority": [
             "100"
+          ]
+        }
+      }
+    ],
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "providerId": "declarative-user-profile",
+        "subComponents": {},
+        "config": {
+          "kc.user.profile.config": [
+            "{\"attributes\": [{\"name\": \"username\", \"displayName\": \"${username}\", \"validations\": {\"length\": {\"min\": 3, \"max\": 255}, \"username-prohibited-characters\": {}, \"up-username-not-idn-homograph\": {}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"email\", \"displayName\": \"${email}\", \"validations\": {\"email\": {}, \"length\": {\"max\": 255}}, \"required\": {\"roles\": [\"user\"]}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"firstName\", \"displayName\": \"${firstName}\", \"validations\": {\"length\": {\"max\": 255}, \"person-name-prohibited-characters\": {}}, \"required\": {\"roles\": [\"user\"]}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}, {\"name\": \"lastName\", \"displayName\": \"${lastName}\", \"validations\": {\"length\": {\"max\": 255}, \"person-name-prohibited-characters\": {}}, \"permissions\": {\"view\": [\"admin\", \"user\"], \"edit\": [\"admin\", \"user\"]}, \"multivalued\": false}], \"groups\": [{\"name\": \"user-metadata\", \"displayHeader\": \"User metadata\", \"displayDescription\": \"Attributes, which refer to user metadata\"}]}"
           ]
         }
       }
@@ -2217,6 +2209,15 @@
       "enabled": true,
       "defaultAction": false,
       "priority": 1000,
+      "config": {}
+    },
+    {
+      "alias": "UPDATE_EMAIL",
+      "name": "Update Email",
+      "providerId": "UPDATE_EMAIL",
+      "enabled": true,
+      "defaultAction": false,
+      "priority": 45,
       "config": {}
     }
   ],

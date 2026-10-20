@@ -108,8 +108,30 @@ public class UserService {
     
     @Transactional
     public void sincronizarNome(UserEntity user, String novoNome) {
-        user.setNome(novoNome);
-        userRepository.updateUser(user.getId(), novoNome, user.getEmail());
+        sincronizarPerfilKeycloak(user, novoNome, null);
+    }
+
+    @Transactional
+    public void sincronizarPerfilKeycloak(UserEntity user, String novoNome, String novoEmail) {
+        boolean alterado = false;
+        String nomeFinal = user.getNome();
+        String emailFinal = user.getEmail();
+
+        if (novoNome != null && !novoNome.trim().isEmpty() && !novoNome.equals(user.getNome())) {
+            nomeFinal = novoNome.trim();
+            user.setNome(nomeFinal);
+            alterado = true;
+        }
+
+        if (novoEmail != null && !novoEmail.trim().isEmpty() && !novoEmail.equalsIgnoreCase(user.getEmail())) {
+            emailFinal = novoEmail.trim().toLowerCase();
+            user.setEmail(emailFinal);
+            alterado = true;
+        }
+
+        if (alterado) {
+            userRepository.updateUser(user.getId(), nomeFinal, emailFinal);
+        }
     }
 
     private UserResponseDTO converterParaDTO(UserEntity entidade) {

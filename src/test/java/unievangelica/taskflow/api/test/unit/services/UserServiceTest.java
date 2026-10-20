@@ -66,6 +66,19 @@ public class UserServiceTest {
     }
 
     @Test
+    @DisplayName("Deve sincronizar nome e e-mail quando forem alterados no Keycloak")
+    void testSincronizarPerfilKeycloak() {
+        userMock.setNome("Nome Antigo");
+        userMock.setEmail("antigo@test.com");
+
+        userService.sincronizarPerfilKeycloak(userMock, "Novo Nome", "novo@test.com");
+
+        assertEquals("Novo Nome", userMock.getNome());
+        assertEquals("novo@test.com", userMock.getEmail());
+        verify(userRepository, times(1)).updateUser(1L, "Novo Nome", "novo@test.com");
+    }
+
+    @Test
     @DisplayName("Deve listar todos os usuários")
     void testListarTodos() {
         when(userRepository.userFindAll()).thenReturn(List.of(userMock));

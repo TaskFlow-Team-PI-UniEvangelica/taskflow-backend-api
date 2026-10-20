@@ -66,15 +66,18 @@
         // 1. Correcao de Rota (Se o Keycloak mandou pro 9090 raiz, forca o React)
         if (btnUrl.endsWith(':9090/') || btnUrl.endsWith(':9090')) {
             btnUrl = 'http://localhost:5173';
-            document.getElementById('auto-redirect-btn').href = btnUrl;
         }
+        if (/(?:^|;\s*)KEYCLOAK_SESSION(?:_LEGACY)?=/.test(document.cookie) && (btnUrl === 'http://localhost:5173' || btnUrl === 'http://localhost:5173/')) {
+            btnUrl = 'http://localhost:5173/dashboard';
+        }
+        document.getElementById('auto-redirect-btn').href = btnUrl;
 
         const timer = setInterval(() => {
             timeLeft--;
             countdownEl.textContent = timeLeft;
             if (timeLeft <= 0) {
                 clearInterval(timer);
-                window.location.href = btnUrl;
+                window.location.replace(btnUrl);
             }
         }, 1000);
     </script>

@@ -7,6 +7,57 @@
     <meta name="view-transition" content="same-origin">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="${url.resourcesPath}/css/taskflow-theme.css">
+    <script>
+        (function () {
+            var clientId = "${(client.clientId)!''}";
+            var isAccountClient = (clientId === "account-console" || clientId === "account");
+            var hasKcAction = window.location.search.indexOf("kc_action=") !== -1;
+
+            if (window.name === "taskflow:registered") {
+                window.name = "";
+            }
+
+            function resolveDashboardUrl() {
+                try {
+                    var params = new URLSearchParams(window.location.search);
+                    var redirectUri = params.get("redirect_uri");
+                    if (redirectUri) {
+                        return new URL(redirectUri).origin + "/dashboard";
+                    }
+                    if (document.referrer) {
+                        var refUrl = new URL(document.referrer);
+                        if (refUrl.origin !== window.location.origin) {
+                            return refUrl.origin + "/dashboard";
+                        }
+                    }
+                } catch (e) {}
+                return "http://localhost:5173/dashboard";
+            }
+
+            function hasActiveKeycloakSession() {
+                return /(?:^|;\s*)KEYCLOAK_SESSION(?:_LEGACY)?=/.test(document.cookie);
+            }
+
+            function isBackForwardNav(evt) {
+                if (evt && evt.persisted) return true;
+                try {
+                    var nav = performance.getEntriesByType && performance.getEntriesByType("navigation")[0];
+                    if (nav && nav.type === "back_forward") return true;
+                } catch (e) {}
+                return Boolean(window.performance && window.performance.navigation && window.performance.navigation.type === 2);
+            }
+
+            function guardLoginPage(evt) {
+                if (hasActiveKeycloakSession() && ((!isAccountClient && !hasKcAction) || isBackForwardNav(evt))) {
+                    document.documentElement.style.display = "none";
+                    window.location.replace(resolveDashboardUrl());
+                }
+            }
+
+            guardLoginPage(null);
+            window.addEventListener("pageshow", guardLoginPage);
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -25,6 +76,9 @@
                             <span class="kc-feedback-text">${kcSanitize(message.summary)?no_esc}</span>
                         </div>
                     </#if>
+                    <div id="kc-registered-success" class="alert alert-success" style="display: none;">
+                        <span class="kc-feedback-text">Conta criada com sucesso! Faça login para acessar o painel.</span>
+                    </div>
 
                     <form id="kc-form-login" onsubmit="login.disabled = true; return true;" action="${url.loginAction}" method="post">
                         
@@ -70,5 +124,44 @@
 
         </div>
     </div>
+    <script>
+        (function () {
+            function resolveFrontendOrigin() {
+                try {
+                    var params = new URLSearchParams(window.location.search);
+                    var redirectUri = params.get("redirect_uri");
+                    if (redirectUri) {
+                        return new URL(redirectUri).origin;
+                    }
+                    if (document.referrer) {
+                        var refUrl = new URL(document.referrer);
+                        if (refUrl.origin !== window.location.origin) {
+                            return refUrl.origin;
+                        }
+                    }
+                } catch (e) {}
+                return "http://localhost:5173";
+            }
+
+            // Se veio do redirecionamento pós-cadastro (que envia login_hint + prompt=login), exibe o aviso de sucesso
+            var searchParams = new URLSearchParams(window.location.search);
+            if (searchParams.get("prompt") === "login" && searchParams.get("login_hint")) {
+                var banner = document.getElementById("kc-registered-success");
+                if (banner) {
+                    banner.style.display = "block";
+                }
+            }
+
+            // Ao clicar em "Se inscreva", passa pela origem do frontend (:5173/?start_signup=1)
+            // para registrar no localStorage que o fluxo é de criação de conta
+            var signupLink = document.querySelector(".signupLink");
+            if (signupLink) {
+                signupLink.addEventListener("click", function (e) {
+                    e.preventDefault();
+                    window.location.replace(resolveFrontendOrigin() + "/?start_signup=1");
+                });
+            }
+        })();
+    </script>
 </body>
 </html>

@@ -47,11 +47,10 @@ public class UserController {
     public ResponseEntity<UserResponseDTO> perfilDeUsuario(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
         UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
         
-        // Sincronizacao Just-In-Time (Espelha o nome do Keycloak para o Banco de Dados)
+        // Sincronizacao Just-In-Time (Espelha o nome e e-mail do Keycloak para o Banco de Dados)
         String nomeNoToken = jwt.getClaimAsString("name");
-        if (nomeNoToken != null && !nomeNoToken.trim().isEmpty() && !nomeNoToken.equals(userLogado.getNome())) {
-            userService.sincronizarNome(userLogado, nomeNoToken);
-        }
+        String emailNoToken = jwt.getClaimAsString("email");
+        userService.sincronizarPerfilKeycloak(userLogado, nomeNoToken, emailNoToken);
 
         UserResponseDTO profile = userService.obterPerfilUsuario(userLogado);
         return ResponseEntity.ok(profile);
