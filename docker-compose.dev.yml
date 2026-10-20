@@ -28,6 +28,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       FRONTEND_URL: ${FRONTEND_URL}
       FRONTEND_URL_VITE: ${FRONTEND_URL_VITE}
+      KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/taskflow-realm/protocol/openid-connect/certs
     depends_on:
       db:
         condition: service_healthy
@@ -55,6 +56,9 @@ services:
       KC_DB_URL: jdbc:postgresql://keycloak_db:5432/${KC_DB_NAME:-keycloak}
       KC_DB_USERNAME: ${KC_DB_USER:-keycloak}
       KC_DB_PASSWORD: ${KC_DB_PASSWORD:-keycloak}
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: 9090
+      KC_HOSTNAME_STRICT: "false"
     ports:
       - "9090:8080"
     volumes:

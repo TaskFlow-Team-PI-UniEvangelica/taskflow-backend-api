@@ -39,6 +39,12 @@ public class SpringSecurityConfig {
                 // injeta o servidor do keycloack como authenticador do backend
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.setStatus(jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED);
+                            response.getWriter().write("{\"status\": 401, \"error\": \"Unauthorized\", \"message\": \"" + 
+                                (authException.getMessage() != null ? authException.getMessage().replace("\"", "'") : "Token inválido ou expirado") + "\"}");
+                        })
                 )
                 .build();
     }

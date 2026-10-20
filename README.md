@@ -18,7 +18,7 @@ A documentação interativa da API pode ser acessada através do Swagger UI. Com
 * **Framework:** Spring Boot
 * **Banco de Dados:** PostgreSQL
 * **Migrações de Banco:** Flyway
-* **Autenticação:** Spring Security e autenticação JWT com biblioteca Auth0
+* **Autenticação & IAM:** Spring Security 6 Resource Server integrado ao Keycloak (OAuth2, OpenID Connect e JWT com validação JWKS)
 * **Infraestrutura:** Docker, Docker Compose e Makefile
 * **Testes:** JUnit 5, Mockito, AssertJ
 * **Utilitários:** Lombok, Spring DevTools
@@ -54,10 +54,15 @@ taskflow-backend-api/
 │           │       ├── repositories/
 │           │       └── services/                # Testes para validação de regras de negócios
 │           └── ApiTaskflowApplicationTests.java # Contexto principal de testes
-├── docker-compose.yml                           # Orquestração do Banco e API em containers
+├── docker-compose.yml                           # Orquestração de Produção em containers
+├── docker-compose.dev.yml                       # Orquestração de Desenvolvimento (Keycloak, DBs, Mailpit, PgAdmin)
 ├── Dockerfile                                   # Build da imagem da API
-├── Makefile                                     # Atalhos de automação (make run, make test)
+├── keycloak/                                    # Arquivos de provisionamento e temas do Keycloak
+│   ├── realm-export.json                        # Export do Realm TaskFlow (Clients, Roles, Políticas)
+│   └── theme/taskflow/                          # Tema customizado Taskflow (Login, Registro, E-mails, Verificação)
+├── Makefile                                     # Atalhos de automação (make run, make test, etc.)
 ├── .env                                         # Arquivo de variáveis de ambiente locais
+├── .env.example                                 # Modelo de variáveis de ambiente para dev/prod
 ├── pom.xml                                      # Gerenciador de dependências (Maven)
 └── README.md                                    # Documentação principal do projeto
 ```
@@ -77,6 +82,7 @@ DB_PASSWORD=postgres_secret
 # ===============================
 DB_URL=jdbc:postgresql://localhost:5433/taskflow
 KEYCLOACK_URL_VITE=http://localhost:9090/realms/taskflow-realm
+KEYCLOAK_JWKS_URI=http://localhost:9090/realms/taskflow-realm/protocol/openid-connect/certs
 
 # ===============================
 # CORS (Permissões de acesso do Frontend)
@@ -130,15 +136,15 @@ CLOUDFLARE_TUNNEL_TOKEN=seu_token_gigante_aqui
 
 
 
-## Arquitetura Multi-Tenancy (Organizações)
-O sistema evoluiu de uma gestão de tarefas individual para uma arquitetura Multi-Tenant (SaaS). 
-Agora, a regra de negócios baseia-se em Organizações:
-- Um Usuário pode pertencer a múltiplas Organizações (`OrganizationEntity`).
-- As Tarefas (`TaskEntity`) pertencem primariamente a uma Organização, permitindo isolamento de dados entre diferentes equipes e empresas, resolvendo vulnerabilidades de BOLA (Broken Object Level Authorization).
+## Arquitetura Multi-Tenancy (Organizações) e Governança de Tarefas
+O sistema opera em uma arquitetura Multi-Tenant (SaaS) orientada a Organizações:
+- Um Usuário pode pertencer a múltiplas Organizações (`OrganizationEntity`), com papéis hierárquicos gerenciados na aplicação: `OWNER` > `SUB_OWNER` > `MANAGER` > `MEMBER`.
+- **Governança Granular por Organização:** O `OWNER` configura permissões para membros (`MEMBER`) relativas à criação, prazos, edição (todas vs. próprias/atribuídas), movimentação no Kanban (todas vs. próprias/atribuídas), retorno de concluídas e exclusão de tarefas, além de política de retenção para auditoria de tarefas excluídas.
+- **Numeração Sequencial Monotônica:** Cada tarefa recebe um número sequencial único dentro de sua organização (`1 - Nome da Task`), que jamais se repete ou é reciclado.
+- As Tarefas (`TaskEntity`) pertencem primariamente a uma Organização, garantindo estrito isolamento de dados entre equipes e prevenindo vulnerabilidades de BOLA (Broken Object Level Authorization).
 
 ## Just-In-Time (JIT) Provisioning
-Para manter a sincronia com o provedor de identidade (Keycloak) sem depender de rotinas de sincronização complexas, a API utiliza a estratégia de JIT Provisioning.
-Ao realizar o primeiro acesso autenticado, o `UserProvisioningFilter` intercepta a requisição, extrai as informações do Token JWT (Subject UUID, E-mail, Nome) e insere automaticamente o registro do usuário na tabela do PostgreSQL. Isso garante a amarração transacional com Tarefas e Organizações sem atrito.
+Para manter a sincronia com o Keycloak sem rotinas manuais, a API utiliza JIT Provisioning no `UserProvisioningFilter`. Ao autenticar, os dados do token (Keycloak UUID, e-mail, nome) são espelhados automaticamente no PostgreSQL. Alterações de nome e e-mail feitas no console de conta do Keycloak também são sincronizadas em tempo real via `GET /user/me`.
 
 # Como executar a aplicação via Docker (Linux)
 Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisitos instalados na sua máquina:
@@ -226,8 +232,8 @@ Após executar `make run-dev` (ou `make run-dev-infra`), os seguintes serviços 
 
 * **Keycloak (Painel Admin):** [http://localhost:9090](http://localhost:9090)
     * *Usuário padrão:* `admin` | *Senha:* `admin`
-* **Mailpit (Caixa de E-mails Falsos):** [http://localhost:8025](http://localhost:8025)
-    * *Não exige senha. Use para ler os e-mails de "Recuperar Senha".*
+* **Mailpit (Caixa de E-mails para Testes):** [http://localhost:8025](http://localhost:8025)
+    * *Não exige senha. Captura em tempo real os e-mails de confirmação de conta (`Verify Email`), recuperação de senha e convites para organizações.*
 * **pgAdmin (Gerenciador de Banco de Dados):** [http://localhost:5050](http://localhost:5050)
     * *E-mail:* `admin@taskflow.com` | *Senha:* `admin`
     * *(Para conectar ao banco lá dentro, use o host `db` e a porta `5432`)*

@@ -17,21 +17,27 @@
                 window.name = "";
             }
 
-            function resolveDashboardUrl() {
+            function resolveFrontendOrigin() {
                 try {
                     var params = new URLSearchParams(window.location.search);
                     var redirectUri = params.get("redirect_uri");
                     if (redirectUri) {
-                        return new URL(redirectUri).origin + "/dashboard";
+                        var parsed = new URL(redirectUri);
+                        if (parsed.origin && parsed.origin !== "null") return parsed.origin;
                     }
                     if (document.referrer) {
                         var refUrl = new URL(document.referrer);
-                        if (refUrl.origin !== window.location.origin) {
-                            return refUrl.origin + "/dashboard";
+                        if (refUrl.origin && refUrl.origin !== "null" && refUrl.origin !== window.location.origin) {
+                            return refUrl.origin;
                         }
                     }
                 } catch (e) {}
-                return "http://localhost:5173/dashboard";
+                return "${(client.baseUrl)!(client.rootUrl)!''}" || window.location.origin;
+            }
+
+            function resolveDashboardUrl() {
+                var origin = resolveFrontendOrigin();
+                return origin ? (origin + "/dashboard") : "/";
             }
 
             function hasActiveKeycloakSession() {
@@ -78,6 +84,9 @@
                     </#if>
                     <div id="kc-registered-success" class="alert alert-success" style="display: none;">
                         <span class="kc-feedback-text">Conta criada com sucesso! Faça login para acessar o painel.</span>
+                    </div>
+                    <div id="kc-verified-success" class="alert alert-success" style="display: none;">
+                        <span class="kc-feedback-text">E-mail confirmado com sucesso! Faça login para acessar o painel.</span>
                     </div>
 
                     <form id="kc-form-login" onsubmit="login.disabled = true; return true;" action="${url.loginAction}" method="post">
@@ -133,19 +142,14 @@
                     if (redirectUri) {
                         return new URL(redirectUri).origin;
                     }
-                    if (document.referrer) {
-                        var refUrl = new URL(document.referrer);
-                        if (refUrl.origin !== window.location.origin) {
-                            return refUrl.origin;
-                        }
-                    }
-                } catch (e) {}
-                return "http://localhost:5173";
-            }
-
-            // Se veio do redirecionamento pós-cadastro (que envia login_hint + prompt=login), exibe o aviso de sucesso
+            // Se veio do redirecionamento pós-confirmação ou pós-cadastro, exibe o aviso apropriado
             var searchParams = new URLSearchParams(window.location.search);
-            if (searchParams.get("prompt") === "login" && searchParams.get("login_hint")) {
+            if (searchParams.get("verified") === "1") {
+                var vBanner = document.getElementById("kc-verified-success");
+                if (vBanner) {
+                    vBanner.style.display = "block";
+                }
+            } else if (searchParams.get("prompt") === "login" && searchParams.get("login_hint")) {
                 var banner = document.getElementById("kc-registered-success");
                 if (banner) {
                     banner.style.display = "block";

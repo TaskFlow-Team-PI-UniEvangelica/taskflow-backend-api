@@ -41,7 +41,7 @@
                         <a href="${url.loginAction}" class="btn-primary" style="text-decoration: none; text-align: center; display: block; box-sizing: border-box; padding: 12px 20px;">
                             Reenviar e-mail de ativação
                         </a>
-                        <a href="http://localhost:5173/" class="cancelLink" style="text-align: center; display: block; margin-top: 8px;">
+                        <a href="${(client.baseUrl)!(client.rootUrl)!url.loginUrl}" class="cancelLink" style="text-align: center; display: block; margin-top: 8px;">
                             Voltar para o TaskFlow
                         </a>
                     </div>

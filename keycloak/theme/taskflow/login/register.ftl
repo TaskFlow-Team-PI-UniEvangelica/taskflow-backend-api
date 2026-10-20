@@ -25,7 +25,8 @@
                         }
                     }
                 } catch (e) {}
-                return "http://localhost:5173/dashboard";
+                var origin = "${(client.baseUrl)!(client.rootUrl)!''}";
+                return origin ? (origin + "/dashboard") : "/";
             }
 
             function hasActiveKeycloakSession() {
@@ -150,7 +151,7 @@
                         }
                     }
                 } catch (e) {}
-                return "http://localhost:5173";
+                return "${(client.baseUrl)!(client.rootUrl)!''}" || window.location.origin;
             }
 
             // Ao clicar em "Cancelar", passa pelo frontend (:5173/?start_login=1)
