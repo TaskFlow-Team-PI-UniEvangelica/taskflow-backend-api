@@ -3,15 +3,22 @@ API desenvolvida com foco no gerenciado de usuários e tarefas, utilizando Sprin
 
 - URL de deploy de testes, cole no navegador para acessar a aplicação sem executar localmente:
     ```
-    http://124.198.128.120/
+    a definir ainda
     ```
+
+## Configuração e Variáveis de Ambiente
+Antes de rodar a aplicação, renomeie o arquivo `.env.example` para `.env` e preencha as variáveis corretamente (Banco de dados, Keycloak, etc).
+
+## Swagger / OpenAPI
+A documentação interativa da API pode ser acessada através do Swagger UI. Como utilizamos o Keycloak para autenticação (Multi-Tenant RBAC), o Swagger já está configurado para interagir com o OAuth2 (Authorization Code Flow) e redirecionar para a tela de login.
+- URL do Swagger: `http://localhost:8080/swagger-ui/index.html`
 
 ## Dependências e Tecnologias Usadas
 * **Linguagem:** Java 21+
 * **Framework:** Spring Boot
 * **Banco de Dados:** PostgreSQL
 * **Migrações de Banco:** Flyway
-* **Autenticação:** Spring Security e autenticação JWT com biblioteca Auth0
+* **Autenticação & IAM:** Spring Security 6 Resource Server integrado ao Keycloak (OAuth2, OpenID Connect e JWT com validação JWKS)
 * **Infraestrutura:** Docker, Docker Compose e Makefile
 * **Testes:** JUnit 5, Mockito, AssertJ
 * **Utilitários:** Lombok, Spring DevTools
@@ -47,51 +54,97 @@ taskflow-backend-api/
 │           │       ├── repositories/
 │           │       └── services/                # Testes para validação de regras de negócios
 │           └── ApiTaskflowApplicationTests.java # Contexto principal de testes
-├── docker-compose.yml                           # Orquestração do Banco e API em containers
+├── docker-compose.yml                           # Orquestração de Produção em containers
+├── docker-compose.dev.yml                       # Orquestração de Desenvolvimento (Keycloak, DBs, Mailpit, PgAdmin)
 ├── Dockerfile                                   # Build da imagem da API
-├── Makefile                                     # Atalhos de automação (make run, make test)
+├── keycloak/                                    # Arquivos de provisionamento e temas do Keycloak
+│   ├── realm-export.json                        # Export do Realm TaskFlow (Clients, Roles, Políticas)
+│   └── theme/taskflow/                          # Tema customizado Taskflow (Login, Registro, E-mails, Verificação)
+├── Makefile                                     # Atalhos de automação (make run, make test, etc.)
 ├── .env                                         # Arquivo de variáveis de ambiente locais
+├── .env.example                                 # Modelo de variáveis de ambiente para dev/prod
 ├── pom.xml                                      # Gerenciador de dependências (Maven)
-├── README.md                                    # Documentação principal do projeto
-└── TaskFlow-API.postman_collection.json         # Collection de endpoints para uso no Postman
+└── README.md                                    # Documentação principal do projeto
 ```
 
-# Configuração do .env para execução via Docker
-Configuração das variáveis de ambiente pelo arquivo (.env), crie um arquivo chamado .env na raiz do projeto, cole as informações abaixo no arquivo e adicione as suas configurações do banco de dados e urls de acordo com o exemplo.
-```
-DB_URL=jdbc:postgresql://db:5433/nome_do_seu_banco
-DB_USER=seu_usuario
-DB_PASSWORD=sua_senha
-JWT_SECRET=sua_assinatura_token
-FRONTEND_URL=http://localhost
-FRONTEND_URL_VITE=http://localhost:5173
-```
+# Configuração do .env para Desenvolvimento (Local)
+Crie um arquivo chamado `.env` na raiz do projeto. Ele será usado pelo `docker-compose.yml` (para Dev) e pelo IntelliJ.
+```env
+# ===============================
+# BANCO DA API (PostgreSQL)
+# ===============================
+DB_NAME=taskflow
+DB_USER=postgres
+DB_PASSWORD=postgres_secret
 
-# Configuração do .env para execução manual
-Configuração das variáveis de ambiente pelo arquivo (.env), crie um arquivo chamado .env na raiz do projeto, cole as informações abaixo no arquivo e adicione as suas configurações de banco de dados e urls do frontend.
-```
-DB_URL=jdbc:postgresql://localhost:5432/nome_do_seu_banco
-DB_USER=seu_usuario
-DB_PASSWORD=sua_senha
-JWT_SECRET=sua_assinatura_token
+# ===============================
+# URLS EXCLUSIVAS PARA RODAR NO INTELLIJ
+# ===============================
+DB_URL=jdbc:postgresql://localhost:5433/taskflow
+KEYCLOACK_URL_VITE=http://localhost:9090/realms/taskflow-realm
+KEYCLOAK_JWKS_URI=http://localhost:9090/realms/taskflow-realm/protocol/openid-connect/certs
+
+# ===============================
+# CORS (Permissões de acesso do Frontend)
+# ===============================
 FRONTEND_URL=http://localhost
 FRONTEND_URL_VITE=http://localhost:5173
+
+# ===============================
+# BANCO DO KEYCLOAK (PostgreSQL)
+# ===============================
+KC_DB_NAME=keycloak
+KC_DB_USER=keycloak
+KC_DB_PASSWORD=keycloak_secret
+
+# ===============================
+# KEYCLOAK ADMIN
+# ===============================
+KC_ADMIN_USER=admin
+KC_ADMIN_PASSWORD=admin
+
+# ===============================
+# FERRAMENTAS EXTRAS DE DEV (PGADMIN)
+# ===============================
+PGADMIN_EMAIL=admin@taskflow.com
+PGADMIN_PASSWORD=admin
 ```
-Aponte o .env como variáveis de ambiente usando o caminho do arquivo do .env no inteliJ conforme o vídeo:
+Aponte o .env como variáveis de ambiente usando o caminho do arquivo do .env no IntelliJ conforme o vídeo:
 https://drive.google.com/file/d/1DN_R-e5uknsZUgw9rTt7TvpMb6NjcUoc/view?usp=sharing
 
-# Para problemas no uso do .env ou Docker
-Caso problemas na configuração ou execução do Docker use hardcode no arquivo `application.properties`, subistitua as variáveis de ambiente pelo valor do seu banco de dados como no exemplo abaixo, vale lembrar a necessidade de ter o Java e o Postgres instalados:
+# Configuração do .env para Produção
+No servidor de produção, o `.env` exigirá chaves de segurança estritas e domínios oficiais.
+```env
+DB_NAME=taskflow_prod
+DB_USER=postgres
+DB_PASSWORD=sua_senha_segura_aqui
+
+KC_DB_NAME=keycloak_prod
+KC_DB_USER=keycloak
+KC_DB_PASSWORD=outra_senha_segura_aqui
+
+KC_ADMIN_USER=admin
+KC_ADMIN_PASSWORD=senha_admin_segura
+
+# Domínios Oficiais (SEM barra no final)
+KC_DOMAIN=auth.taskflow.com.br
+FRONTEND_URL=https://taskflow.com.br
+
+# Token do Cloudflare Zero Trust (Quando adquirir o domínio)
+CLOUDFLARE_TUNNEL_TOKEN=seu_token_gigante_aqui
 ```
-spring.application.name=api-taskflow
-spring.datasource.url=postgresql://localhost:5432/nome_do_seu_banco
-spring.datasource.username=seu_usuario
-spring.datasource.password=sua_senha
-api.security.token.secret=${JWT_SECRET:sua_assinatura_token}
-api.cors.frontend.url=${FRONTEND_URL:http://localhost}
-api.cors.frontend.url.vite=${FRONTEND_URL_VITE:http://localhost:5173
-```
-Localizado em `src/main/resources/application.properties`.
+
+
+
+## Arquitetura Multi-Tenancy (Organizações) e Governança de Tarefas
+O sistema opera em uma arquitetura Multi-Tenant (SaaS) orientada a Organizações:
+- Um Usuário pode pertencer a múltiplas Organizações (`OrganizationEntity`), com papéis hierárquicos gerenciados na aplicação: `OWNER` > `SUB_OWNER` > `MANAGER` > `MEMBER`.
+- **Governança Granular por Organização:** O `OWNER` configura permissões para membros (`MEMBER`) relativas à criação, prazos, edição (todas vs. próprias/atribuídas), movimentação no Kanban (todas vs. próprias/atribuídas), retorno de concluídas e exclusão de tarefas, além de política de retenção para auditoria de tarefas excluídas.
+- **Numeração Sequencial Monotônica:** Cada tarefa recebe um número sequencial único dentro de sua organização (`1 - Nome da Task`), que jamais se repete ou é reciclado.
+- As Tarefas (`TaskEntity`) pertencem primariamente a uma Organização, garantindo estrito isolamento de dados entre equipes e prevenindo vulnerabilidades de BOLA (Broken Object Level Authorization).
+
+## Just-In-Time (JIT) Provisioning
+Para manter a sincronia com o Keycloak sem rotinas manuais, a API utiliza JIT Provisioning no `UserProvisioningFilter`. Ao autenticar, os dados do token (Keycloak UUID, e-mail, nome) são espelhados automaticamente no PostgreSQL. Alterações de nome e e-mail feitas no console de conta do Keycloak também são sincronizadas em tempo real via `GET /user/me`.
 
 # Como executar a aplicação via Docker (Linux)
 Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisitos instalados na sua máquina:
@@ -115,87 +168,28 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
 4. **Env configurado:**
    Tenha o arquivo .env devidamente configurado como nos tópicos anteriores.
 
-5. **Comandos Docker para execução e gerência da api e banco de dados:**
-   #### Subir container:
-   ```bash
-   make run
-   ```
-   #### Derrubar container:
-   ```bash
-   make down
-   ```
-   #### Derrubar container e volume do banco de dados:
-   ```bash
-   make down-db
-   ```
-   #### Derruba o container e apaga as imagens, mantendo o volume:
-   ```bash
-   make clean
-   ```
-   #### Derruba o container apaga volume e imagens:
-   ```bash
-   make clean-db
-   ```
-   #### Acessar logs do container:
-   ```bash
-   make logs
-   ```
-   #### Acessar terminal da API do container:
-   ```bash
-   make terminal
-   ```
-   Para sair digite ``` exit ``` no terminal.
+5. **Comandos de Orquestração (Makefile):**
+   O projeto utiliza um `Makefile` unificado para gerenciar separadamente os ambientes de Desenvolvimento e Produção. No Windows, você pode rodar os mesmos comandos se tiver o WSL ou ferramentas como Git Bash / Make for Windows instalados. Caso não tenha, os comandos brutos do Docker Compose estão comentados no próprio arquivo `Makefile`.
 
-# Como executar a aplicação via Docker (Windows)
-Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisitos instalados na sua máquina:
-* **Docker Desktop**
-* Use a IDE **IntelliJ IDEA** para visualizar o backend.
+   ### Ambiente de Desenvolvimento (Sufixo `-dev`)
+   Ideal para programar localmente. Sobe o Banco, Keycloak, PgAdmin e Mailpit com portas expostas.
+   * `make run-dev`: Sobe todo o ambiente de desenvolvimento.
+   * `make run-dev-infra`: Sobe apenas os bancos e ferramentas (Sem a API Java). Use isso para poder rodar o Java direto na IDE (IntelliJ) e aproveitar o Hot Reload.
+   * `make down-db-all-dev`: Destrói todos os containers e apaga todos os bancos de dados de Dev.
+   * `make down-db-api-dev`: Apaga somente o banco da API.
+   * `make down-db-keycloak-dev`: Apaga somente o banco do Keycloak.
+   * `make logs-dev`: Acompanha os logs em tempo real.
+   * `make clean-dev`: Remove containers e imagens de desenvolvimento.
 
-### Passo a passo para execução no Windows:
-1. **Clone o repositório:**
-   Clone o repositório do backend seja usando terminal ou baixando o arquivo ZIP.
-
-2. **Acesse a pasta do projeto pelo terminal:**
-   ```bash
-   cd taskflow-backend-api
-   ```
-
-3. **Garantia de acesso:**
-   Garanta que o Docker tenha acesso de administrador na máquina.
-
-4. **Env configurado:**
-   Tenha o arquivo .env devidamente configurado como nos tópicos anteriores. 
-
-5. **Comandos Docker para execução e gerência da api e banco de dados:**
-   #### Subir container:
-   ```cmd
-   docker compose up --build
-   ```
-   #### Derrubar container:
-   ```cmd
-   docker compose down
-   ```
-   #### Derrubar container e volume do banco de dados:
-   ```cmd
-   docker compose down -v
-   ```
-   #### Derruba o container e apaga as imagens, mantendo o volume:
-   ```cmd
-   docker compose down --rmi all
-   ```
-   #### Derruba o container apaga volume e imagens:
-   ```cmd
-   docker compose down -v --rmi all
-   ```
-   #### Acessar logs do container:
-   ```cmd
-   docker compose logs -f api
-   ```
-   #### Acessar terminal da API do container:
-   ```cmd
-   docker exec -it taskflow_api bash
-   ```
-   Para sair digite ``` exit ``` no terminal.
+   ### Ambiente de Produção (Sem sufixo)
+   Sobe a arquitetura blindada. O Keycloak roda em modo otimizado, bancos sem portas externas, pronto para o Cloudflare Tunnel.
+   * `make run`: Sobe todo o ambiente de produção.
+   * `make down`: Desliga o ambiente (mantendo os dados).
+   * `make down-db-all`: Destrói todos os containers e apaga todos os bancos de Prod.
+   * `make down-db-api`: Apaga somente o banco da API de Prod.
+   * `make down-db-keycloak`: Apaga somente o banco do Keycloak de Prod.
+   * `make logs`: Acompanha os logs em tempo real.
+   * `make clean`: Remove containers e imagens de produção.
 
 # Como executar a aplicação manualmente
 
@@ -232,7 +226,19 @@ Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisit
       ```
     * **Via IDE:** Localize a classe `ApiTaskflowApplication.java` no caminho `src/main/java/unievangelica/taskflow/api/` e rode a classe.
 
-Após inicializar a classe acesse o caminho da api `http://localhost:8080`.
+
+# Acessos Locais (Ambiente de Desenvolvimento)
+Após executar `make run-dev` (ou `make run-dev-infra`), os seguintes serviços estarão disponíveis no seu navegador:
+
+* **Keycloak (Painel Admin):** [http://localhost:9090](http://localhost:9090)
+    * *Usuário padrão:* `admin` | *Senha:* `admin`
+* **Mailpit (Caixa de E-mails para Testes):** [http://localhost:8025](http://localhost:8025)
+    * *Não exige senha. Captura em tempo real os e-mails de confirmação de conta (`Verify Email`), recuperação de senha e convites para organizações.*
+* **pgAdmin (Gerenciador de Banco de Dados):** [http://localhost:5050](http://localhost:5050)
+    * *E-mail:* `admin@taskflow.com` | *Senha:* `admin`
+    * *(Para conectar ao banco lá dentro, use o host `db` e a porta `5432`)*
+* **API Spring Boot:** [http://localhost:8080](http://localhost:8080)
+
 
 # Como executar Testes Unitários
 
@@ -257,28 +263,21 @@ Esta é a forma recomendada para validar todo o projeto de uma vez (muito útil 
   mvnw.cmd test
   ```
 
-# Endpoints da API
+# Documentação da API (Swagger)
 
-Abaixo estão as rotas para testar via postman, a collection está na raiz do projeto:
+A API possui sua documentação gerada dinamicamente através do **Swagger UI** (OpenAPI 3). Nele, você pode visualizar todos os endpoints disponíveis, seus métodos, esquemas de requisição/resposta, validações e testar as requisições diretamente do navegador.
 
-* **Autenticação:**
-    * `POST /auth/login` - Autentica o usuário e retorna o token JWT.
-    * `POST /auth/register` - Cria uma nova conta de usuário.
+### Como acessar o Swagger:
+1. Certifique-se de que a aplicação Spring Boot (backend) esteja rodando na sua máquina.
+2. Acesse a seguinte URL no seu navegador:
+   [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
 
-* **Usuários Me (Funciona com base no Token do usuário):**
-    * `GET /user/me` - Lista o perfil do usuário logado.
-    * `PATCH /user/me/password` - Essa rota permite o próprio usuário aualizar sua senha passando a antiga como parâmetro.
+### Como realizar requisições autenticadas no Swagger:
+A API está perfeitamente integrada ao Keycloak. Você não precisa gerar o token manualmente e colar. Para testar as rotas fechadas:
+1. Clique no botão **Authorize** (geralmente com um ícone de cadeado) no canto superior direito da tela do Swagger.
+2. Na janela modal que abrir, role para baixo até a opção **OAuth2**.
+3. Deixe o client_id como `taskflow-frontend` e clique em **Authorize**.
+4. Você será redirecionado automaticamente para a tela de login do Keycloak. Faça login com suas credenciais.
+5. Após o login, você será redirecionado de volta para o Swagger já autenticado. A partir desse momento, basta clicar em **"Try it out"** nas rotas e o Swagger injetará o token automaticamente.
 
-* **Usuários (Somente admin, essas rotas serão consumidas posteriormente pelo frontend):**
-    * `GET /user` - Lista todos os usuários (Essa rota não é para apenas admin).
-    * `POST /user` - Adiciona um novo usuário.
-    * `PUT /user/{id}` - Atualiza todos os dados de um usuário menos a senha.
-    * `PATCH /user/{id}/password` - Permite atualizar a senha do usuário passando a antiga senha como paramêtro e salva em hash. (função deve ser alterada para funcionamento do admin posteriormente)
-    * `DELETE /task/{id}` - Exclui usuário pelo id.
-
-* **Tarefas (Requer token obtido pela rota de login):**
-    * `GET /task` - Lista as tarefas de todos os usuário autenticado.
-    * `POST /task` - Cria uma nova tarefa (apenas admin).
-    * `PUT /task/{id}` - Atualiza os dados de uma tarefa.
-    * `PATCH /task/{id}/status` - Atualiza os dados de status de uma tarefa, usado para o Kanban do Frontend.
-    * `DELETE /task/{id}` - Exclui uma tarefa (apenas admin).
+*Nota:* Se houver erro de "Invalid redirect_uri", verifique se configurou a URL `http://localhost:8080/*` nos *Valid Redirect URIs* do Client `taskflow-frontend` no painel de administração do Keycloak, ou se iniciou um banco do zero após a última atualização do arquivo `realm-export.json`.
