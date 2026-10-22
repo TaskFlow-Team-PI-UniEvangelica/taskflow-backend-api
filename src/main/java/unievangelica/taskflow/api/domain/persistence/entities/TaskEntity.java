@@ -20,6 +20,9 @@ public class TaskEntity {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "task_number", nullable = false)
+    private Integer taskNumber = 1;
+
     @Column(nullable = false) // verificações de colunas para garantir que o JPA trate isso como not null
     private String titulo;
 
@@ -43,14 +46,20 @@ public class TaskEntity {
     private UserEntity criador;
 
     // novo relacionamento N to N para os responsáveis das tasks
+    @ManyToOne
+    @JoinColumn(name = "organization_id")
+    private OrganizationEntity organization;
+
     @ManyToMany
     @JoinTable(
             name = "task_responsibles",
             joinColumns = @JoinColumn(name = "task_id"),
             inverseJoinColumns = @JoinColumn(name = "user_id")
     )
-
     private List<UserEntity> responsaveis = new ArrayList<>();
+
+    @OneToMany(mappedBy = "task")
+    private List<TaskHistoryEntity> history = new ArrayList<>();
 
     // lista com todos os valores presentes no enum
     public enum Status {

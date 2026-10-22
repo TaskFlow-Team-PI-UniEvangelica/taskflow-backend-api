@@ -17,12 +17,25 @@ import java.util.Optional;
 @Repository
 public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
     @Query("SELECT DISTINCT t FROM Task t " +
-            "JOIN FETCH t.criador " +
+            "LEFT JOIN FETCH t.criador " +
             "LEFT JOIN FETCH t.responsaveis")
     List<TaskEntity> listAllTasks();
 
+    @Query("SELECT DISTINCT t FROM Task t " +
+            "LEFT JOIN FETCH t.criador " +
+            "LEFT JOIN FETCH t.responsaveis " +
+            "WHERE t.organization.id = :orgId")
+    List<TaskEntity> listTasksByOrganization(@Param("orgId") Long orgId);
+
+    @Query("SELECT DISTINCT t FROM Task t " +
+            "LEFT JOIN FETCH t.criador " +
+            "LEFT JOIN FETCH t.responsaveis " +
+            "JOIN t.organization.members m " +
+            "WHERE m.user.id = :userId")
+    List<TaskEntity> listTasksByUserOrganizations(@Param("userId") Long userId);
+
     @Query("SELECT t FROM Task t " +
-            "JOIN FETCH t.criador " +
+            "LEFT JOIN FETCH t.criador " +
             "LEFT JOIN FETCH t.responsaveis " +
             "WHERE t.id = :id")
     Optional<TaskEntity> findTaskById(@Param("id") Long id);
