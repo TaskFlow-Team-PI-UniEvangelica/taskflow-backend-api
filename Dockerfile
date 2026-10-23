@@ -1,20 +1,24 @@
-# Build maven usando jdk 21
-FROM maven:3.9.6-eclipse-temurin-21-jammy AS build
+# Build maven usando a plataforma nativa do runner ($BUILDPLATFORM) para máxima velocidade
+FROM --platform=$BUILDPLATFORM maven:3.9.6-eclipse-temurin-21-jammy AS build
 WORKDIR /app
-COPY . .
-RUN mvn clean package -DskipTests
 
-# runtime com temurin 21
+# Cache das dependências Maven
+COPY pom.xml .
+RUN mvn -B -q dependency:go-offline
+
+# Compilação do código
+COPY src ./src
+RUN mvn -B -q clean package -DskipTests
+
+# Runtime Temurin 21 (construído para a arquitetura de destino)
 FROM eclipse-temurin:21-jre-jammy
+RUN useradd --system --uid 10001 --no-create-home taskflowuser
 WORKDIR /app
 
-# criar um usuário não-root por boas práticas de segurança de api
-RUN useradd -m taskflowuser
-USER taskflowuser
-
-# copia apenas o .jar gerado no estágio anterior
+# Copia apenas o .jar gerado no estágio anterior
 COPY --from=build /app/target/*.jar app.jar
+USER taskflowuser
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-XX:+ExitOnOutOfMemoryError", "-jar", "app.jar"]

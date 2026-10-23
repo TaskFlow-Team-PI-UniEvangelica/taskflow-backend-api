@@ -1,0 +1,155 @@
+name: taskflow
+
+x-defaults: &defaults
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  db:
+    <<: *defaults
+    image: postgres:16-alpine
+    container_name: taskflow_db_prod
+    environment:
+      POSTGRES_DB: ${DB_NAME:?defina DB_NAME}
+      POSTGRES_USER: ${DB_USER:?defina DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD}
+    volumes:
+      - ./data/postgres-api:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"        # exposto apenas em loopback para túnel SSH administrativo
+    shm_size: 256mb
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 1g }
+
+  keycloak_db:
+    <<: *defaults
+    image: postgres:16-alpine
+    container_name: taskflow_keycloak_db_prod
+    environment:
+      POSTGRES_DB: ${KC_DB_NAME:?defina KC_DB_NAME}
+      POSTGRES_USER: ${KC_DB_USER:?defina KC_DB_USER}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:?defina KC_DB_PASSWORD}
+    volumes:
+      - ./data/postgres-keycloak:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"        # exposto apenas em loopback para túnel SSH administrativo
+    shm_size: 256mb
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 1g }
+
+  keycloak:
+    <<: *defaults
+    image: ghcr.io/${GHCR_OWNER:?}/taskflow-keycloak:${BACKEND_TAG:-latest}
+    container_name: taskflow_keycloak_prod
+    command: ["start", "--optimized", "--import-realm"]
+    environment:
+      KC_DB_URL: jdbc:postgresql://keycloak_db:5432/${KC_DB_NAME}
+      KC_DB_USERNAME: ${KC_DB_USER}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KEYCLOAK_ADMIN: ${KC_ADMIN_USER:?defina KC_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?defina KC_ADMIN_PASSWORD}
+      KC_HOSTNAME: ${KC_DOMAIN:?defina KC_DOMAIN}
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
+      JAVA_OPTS_APPEND: "-XX:MaxRAMPercentage=70"
+    depends_on:
+      keycloak_db: { condition: service_healthy }
+    networks: [data, edge]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    deploy:
+      resources:
+        limits: { memory: 1536m }
+
+  api:
+    <<: *defaults
+    image: ghcr.io/${GHCR_OWNER:?}/taskflow-api:${BACKEND_TAG:-latest}
+    container_name: taskflow_api_prod
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      KEYCLOACK_URL_VITE: https://${KC_DOMAIN}/realms/taskflow-realm
+      KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/taskflow-realm/protocol/openid-connect/certs
+      FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL}
+      FRONTEND_URL_VITE: ${FRONTEND_URL}
+      SMTP_HOST: ${SMTP_HOST:?defina SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:?defina SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:?defina SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM:?defina SMTP_FROM}
+    read_only: true
+    tmpfs: [/tmp]
+    depends_on:
+      db: { condition: service_healthy }
+      keycloak: { condition: service_healthy }
+    networks: [data, edge]
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /actuator/health HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 60s
+    deploy:
+      resources:
+        limits: { memory: 1536m }
+
+  frontend:
+    <<: *defaults
+    image: ghcr.io/${GHCR_OWNER:?}/taskflow-frontend:${FRONTEND_TAG:-latest}
+    container_name: taskflow_frontend_prod
+    read_only: true
+    tmpfs: [/tmp]
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { memory: 128m }
+
+  cloudflared:
+    <<: *defaults
+    image: cloudflare/cloudflared:latest
+    container_name: taskflow_cloudflared_prod
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?defina CLOUDFLARE_TUNNEL_TOKEN}
+    read_only: true
+    networks: [edge]
+    deploy:
+      resources:
+        limits: { memory: 128m }
+
+networks:
+  edge:
+    name: taskflow_edge
+  data:
+    name: taskflow_data

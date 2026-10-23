@@ -22,6 +22,9 @@ public class EmailService {
     @Value("${api.cors.frontend.url:http://localhost}")
     private String frontendUrl;
 
+    @Value("${app.mail.from:nao-responda@taskflow.party}")
+    private String mailFrom;
+
     public void sendInviteEmail(String to, String inviterName, String organizationName) {
         try {
             MimeMessage message = javaMailSender.createMimeMessage();
@@ -29,7 +32,7 @@ public class EmailService {
 
             helper.setTo(to);
             helper.setSubject("Convite para equipe no TaskFlow");
-            helper.setFrom("noreply@taskflow.com.br");
+            helper.setFrom(mailFrom);
 
             Map<String, Object> model = Map.of(
                     "inviterName", inviterName,

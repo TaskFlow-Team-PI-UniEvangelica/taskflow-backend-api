@@ -127,8 +127,8 @@ KC_ADMIN_USER=admin
 KC_ADMIN_PASSWORD=senha_admin_segura
 
 # Domínios Oficiais (SEM barra no final)
-KC_DOMAIN=auth.taskflow.com.br
-FRONTEND_URL=https://taskflow.com.br
+KC_DOMAIN=auth.taskflow.party
+FRONTEND_URL=https://taskflow.party
 
 # Token do Cloudflare Zero Trust (Quando adquirir o domínio)
 CLOUDFLARE_TUNNEL_TOKEN=seu_token_gigante_aqui
