@@ -34,8 +34,8 @@ dump() {
   fi
 }
 
-dump db          "$DB_USER"    "$DB_NAME"    api
-dump keycloak_db "$KC_DB_USER" "$KC_DB_NAME" keycloak
+dump db "$DB_USER"    "$DB_NAME"    api
+dump db "$KC_DB_USER" "$KC_DB_NAME" keycloak
 
 # Mantém os últimos 7 dias localmente no servidor
 find "$DIR" -name '*.dump' -mtime +7 -delete || true
