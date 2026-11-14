@@ -4,6 +4,7 @@ import freemarker.template.Configuration;
 import freemarker.template.Template;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -12,6 +13,7 @@ import org.springframework.ui.freemarker.FreeMarkerTemplateUtils;
 
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -48,8 +50,8 @@ public class EmailService {
             javaMailSender.send(message);
 
         } catch (Exception e) {
-            // Log error
-            e.printStackTrace();
+            // O convite ja foi persistido e continua visivel no app; a falha de envio fica registrada no log.
+            log.error("Falha ao enviar e-mail de convite para {} (organizacao '{}'): {}", to, organizationName, e.getMessage(), e);
         }
     }
 }
