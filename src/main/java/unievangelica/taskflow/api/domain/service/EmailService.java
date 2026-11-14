@@ -40,7 +40,7 @@ public class EmailService {
                     "frontendUrl", frontendUrl
             );
 
-            Template template = freemarkerConfig.getTemplate("invite.ftl");
+            Template template = freemarkerConfig.getTemplate("invite.ftlh");
             String htmlContent = FreeMarkerTemplateUtils.processTemplateIntoString(template, model);
 
             helper.setText(htmlContent, true);
