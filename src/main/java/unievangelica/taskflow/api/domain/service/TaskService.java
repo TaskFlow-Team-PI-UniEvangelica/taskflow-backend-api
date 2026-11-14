@@ -46,15 +46,18 @@ public class TaskService {
     }
 
     public List<TaskResponseDTO> listarTasks(Long organizationId, UserEntity userLogado){
+        // Nega por padrão: sem usuário identificado não há escopo de tenant para filtrar as tarefas.
+        if (userLogado == null || userLogado.getId() == null) {
+            throw new SecurityException("Usuário não identificado.");
+        }
+
         if (organizationId != null) {
             OrganizationEntity organization = organizationRepository.findById(organizationId)
                     .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada."));
-            if (userLogado != null && userLogado.getId() != null) {
-                boolean isMember = organization.getMembers().stream()
-                        .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
-                if (!isMember) {
-                    throw new SecurityException("Você não pertence a esta organização.");
-                }
+            boolean isMember = organization.getMembers().stream()
+                    .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
+            if (!isMember) {
+                throw new SecurityException("Você não pertence a esta organização.");
             }
             List<TaskEntity> tasksDB = taskRepository.listTasksByOrganization(organizationId);
             return tasksDB.stream()
@@ -62,14 +65,7 @@ public class TaskService {
                     .collect(Collectors.toList());
         }
 
-        if (userLogado != null && userLogado.getId() != null) {
-            return taskRepository.listTasksByUserOrganizations(userLogado.getId()).stream()
-                    .map(this::converterParaDTO)
-                    .collect(Collectors.toList());
-        }
-        
-        List<TaskEntity> tasksDB = taskRepository.listAllTasks();
-        return tasksDB.stream()
+        return taskRepository.listTasksByUserOrganizations(userLogado.getId()).stream()
                 .map(this::converterParaDTO)
                 .collect(Collectors.toList());
     }

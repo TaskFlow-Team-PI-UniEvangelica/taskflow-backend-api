@@ -80,9 +80,12 @@ public class TaskServiceTest {
         taskMock.setCriador(criador);
         taskMock.setResponsaveis(List.of());
 
-        when(taskRepository.listAllTasks()).thenReturn(List.of(taskMock));
+        UserEntity usuarioLogado = new UserEntity();
+        usuarioLogado.setId(5L);
 
-        List<TaskResponseDTO> resultado = taskService.listarTasks(null, new UserEntity());
+        when(taskRepository.listTasksByUserOrganizations(5L)).thenReturn(List.of(taskMock));
+
+        List<TaskResponseDTO> resultado = taskService.listarTasks(null, usuarioLogado);
 
         assertThat(resultado).isNotNull().hasSize(1);
         TaskResponseDTO taskRetornada = resultado.get(0);
@@ -93,7 +96,26 @@ public class TaskServiceTest {
         assertThat(taskRetornada.prioridade()).isEqualTo("media");
         assertThat(taskRetornada.nomeCriador()).isEqualTo("UnitTestServiceUser");
 
-        verify(taskRepository, times(1)).listAllTasks();
+        verify(taskRepository, times(1)).listTasksByUserOrganizations(5L);
+    }
+
+    @Test
+    @DisplayName("Deve negar listagem geral de tarefas quando o usuário não está identificado")
+    void testaListarTasksSemUsuarioIdentificadoNegaAcesso() {
+        assertThrows(SecurityException.class, () -> taskService.listarTasks(null, null));
+        assertThrows(SecurityException.class, () -> taskService.listarTasks(null, new UserEntity()));
+
+        verifyNoInteractions(taskRepository);
+    }
+
+    @Test
+    @DisplayName("Deve negar listagem de tarefas da organização quando o usuário não está identificado")
+    void testaListarTasksPorOrganizacaoSemUsuarioIdentificadoNegaAcesso() {
+        assertThrows(SecurityException.class, () -> taskService.listarTasks(100L, null));
+        assertThrows(SecurityException.class, () -> taskService.listarTasks(100L, new UserEntity()));
+
+        verifyNoInteractions(taskRepository);
+        verify(organizationRepository, never()).findById(anyLong());
     }
 
     @Test

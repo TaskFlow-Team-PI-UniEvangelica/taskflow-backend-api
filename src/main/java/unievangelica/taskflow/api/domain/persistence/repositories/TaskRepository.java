@@ -18,11 +18,6 @@ import java.util.Optional;
 public interface TaskRepository extends JpaRepository<TaskEntity, Long> {
     @Query("SELECT DISTINCT t FROM Task t " +
             "LEFT JOIN FETCH t.criador " +
-            "LEFT JOIN FETCH t.responsaveis")
-    List<TaskEntity> listAllTasks();
-
-    @Query("SELECT DISTINCT t FROM Task t " +
-            "LEFT JOIN FETCH t.criador " +
             "LEFT JOIN FETCH t.responsaveis " +
             "WHERE t.organization.id = :orgId")
     List<TaskEntity> listTasksByOrganization(@Param("orgId") Long orgId);
