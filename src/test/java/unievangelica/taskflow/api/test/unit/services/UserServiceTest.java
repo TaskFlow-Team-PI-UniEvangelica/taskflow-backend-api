@@ -49,20 +49,16 @@ public class UserServiceTest {
     }
 
     @Test
-    @DisplayName("Deve criar novo usuário se Keycloak ID não existir (First login sync)")
-    void testBuscarPorKeycloakIdNovo() {
+    @DisplayName("Deve lançar exceção quando o Keycloak ID não existir")
+    void testBuscarPorKeycloakIdInexistenteLancaExcecao() {
         when(userRepository.findByKeycloakId("new-id")).thenReturn(Optional.empty());
-        
-        UserEntity novoUser = new UserEntity();
-        novoUser.setKeycloakId("new-id");
-        novoUser.setNome("Usuario Keycloak");
 
-        // This behavior depends on how UserService is implemented.
-        // Usually there is a sync method or it throws an exception if not found.
-        // Assuming your UserService throws exception if just searching, adjust as necessary:
-        assertThrows(RuntimeException.class, () -> {
-            userService.buscarPorKeycloakId("new-id");
-        });
+        // O provisionamento JIT é feito pelo UserProvisioningFilter; o UserService apenas busca.
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> userService.buscarPorKeycloakId("new-id"));
+
+        assertEquals("Usuário não encontrado", ex.getMessage());
+        verify(userRepository, times(1)).findByKeycloakId("new-id");
     }
 
     @Test
