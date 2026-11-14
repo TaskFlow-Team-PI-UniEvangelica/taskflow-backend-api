@@ -373,6 +373,103 @@ public class TaskServiceTest {
         verify(taskHistoryRepository, times(1)).deleteExpiredDeletedHistory(eq(10L), any(LocalDateTime.class));
     }
 
+    // --- Histórico da organização (RNE-006: excluídas só para cargos acima de MEMBER) ---
+
+    private OrganizationEntity orgComMembro(Long orgId, Integer retentionDays, UserEntity user, OrganizationRole role) {
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(orgId);
+        org.setDeletedTasksRetentionDays(retentionDays);
+        OrganizationMemberEntity membro = new OrganizationMemberEntity();
+        membro.setOrganization(org);
+        membro.setUser(user);
+        membro.setRole(role);
+        org.setMembers(List.of(membro));
+        return org;
+    }
+
+    private UserEntity usuario(Long id) {
+        UserEntity u = new UserEntity();
+        u.setId(id);
+        u.setNome("Usuário " + id);
+        return u;
+    }
+
+    @Test
+    @DisplayName("MEMBER deve receber no histórico da organização apenas eventos de tarefas existentes")
+    void testarHistoricoOrganizacaoMemberSemTarefasExcluidas() {
+        UserEntity member = usuario(2L);
+        OrganizationEntity org = orgComMembro(10L, 7, member, OrganizationRole.MEMBER);
+        TaskEntity existente = new TaskEntity();
+        existente.setId(100L);
+        existente.setTitulo("Tarefa ativa");
+        TaskHistoryEntity evento = TaskHistoryEntity.builder()
+                .id(1L).organization(org).task(existente).taskTitle("Tarefa ativa")
+                .user(member).actionType("CREATED").timestamp(LocalDateTime.now()).build();
+
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(org));
+        when(taskHistoryRepository.findExistingTasksByOrganizationIdOrderByTimestampDesc(10L)).thenReturn(List.of(evento));
+
+        List<TaskHistoryResponseDTO> result = taskService.getOrganizationHistory(10L, member);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).taskId()).isEqualTo(100L);
+        verify(taskHistoryRepository, never()).findByOrganizationIdOrderByTimestampDesc(anyLong());
+        verify(taskHistoryRepository, never()).findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Cargos acima de MEMBER devem receber o histórico completo respeitando a retenção de excluídas")
+    void testarHistoricoOrganizacaoGestorComRetencao() {
+        for (OrganizationRole role : List.of(OrganizationRole.OWNER, OrganizationRole.SUB_OWNER, OrganizationRole.MANAGER)) {
+            reset(organizationRepository, taskHistoryRepository);
+            UserEntity gestor = usuario(1L);
+            OrganizationEntity org = orgComMembro(10L, 7, gestor, role);
+            TaskHistoryEntity excluida = TaskHistoryEntity.builder()
+                    .id(2L).organization(org).taskTitle("Tarefa excluída")
+                    .user(gestor).actionType("DELETED").timestamp(LocalDateTime.now()).build();
+
+            when(organizationRepository.findById(10L)).thenReturn(Optional.of(org));
+            when(taskHistoryRepository.findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(eq(10L), any(LocalDateTime.class)))
+                    .thenReturn(List.of(excluida));
+
+            List<TaskHistoryResponseDTO> result = taskService.getOrganizationHistory(10L, gestor);
+
+            assertThat(result).as(role.name()).hasSize(1);
+            assertThat(result.get(0).actionType()).isEqualTo("DELETED");
+            ArgumentCaptor<LocalDateTime> corte = ArgumentCaptor.forClass(LocalDateTime.class);
+            verify(taskHistoryRepository).findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(eq(10L), corte.capture());
+            assertThat(corte.getValue()).isBetween(LocalDateTime.now().minusDays(7).minusMinutes(1), LocalDateTime.now().minusDays(7).plusMinutes(1));
+            verify(taskHistoryRepository, never()).findExistingTasksByOrganizationIdOrderByTimestampDesc(anyLong());
+            // A consulta do histórico não expurga registros (expurgo é responsabilidade de outro fluxo)
+            verify(taskHistoryRepository, never()).deleteExpiredDeletedHistory(anyLong(), any());
+        }
+    }
+
+    @Test
+    @DisplayName("OWNER sem retenção configurada deve receber o histórico completo")
+    void testarHistoricoOrganizacaoOwnerSemRetencao() {
+        UserEntity owner = usuario(1L);
+        OrganizationEntity org = orgComMembro(10L, null, owner, OrganizationRole.OWNER);
+
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(org));
+        when(taskHistoryRepository.findByOrganizationIdOrderByTimestampDesc(10L)).thenReturn(List.of());
+
+        taskService.getOrganizationHistory(10L, owner);
+
+        verify(taskHistoryRepository).findByOrganizationIdOrderByTimestampDesc(10L);
+        verify(taskHistoryRepository, never()).findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Usuário que não pertence à organização não deve acessar o histórico")
+    void testarHistoricoOrganizacaoNaoMembroNegado() {
+        OrganizationEntity org = orgComMembro(10L, 7, usuario(1L), OrganizationRole.OWNER);
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(org));
+
+        assertThrows(SecurityException.class, () -> taskService.getOrganizationHistory(10L, usuario(99L)));
+        verifyNoInteractions(taskHistoryRepository);
+    }
+
     @Test
     @DisplayName("Deve bloquear movimentação de status no Kanban por usuário que não pertence à organização")
     void testarAtualizarStatusTaskUsuarioNaoMembro() {

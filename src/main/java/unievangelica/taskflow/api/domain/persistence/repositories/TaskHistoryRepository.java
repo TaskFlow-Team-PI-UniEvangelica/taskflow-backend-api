@@ -19,6 +19,17 @@ public interface TaskHistoryRepository extends JpaRepository<TaskHistoryEntity, 
     @Query("SELECT h FROM TaskHistoryEntity h LEFT JOIN FETCH h.user LEFT JOIN FETCH h.task WHERE h.organization.id = :organizationId ORDER BY h.timestamp DESC, h.id DESC")
     List<TaskHistoryEntity> findByOrganizationIdOrderByTimestampDesc(@Param("organizationId") Long organizationId);
 
+    // Histórico apenas de tarefas existentes: eventos de tarefas excluídas ficam com task nula (FK ON DELETE SET NULL)
+    @Query("SELECT h FROM TaskHistoryEntity h LEFT JOIN FETCH h.user LEFT JOIN FETCH h.task WHERE h.organization.id = :organizationId AND h.task IS NOT NULL ORDER BY h.timestamp DESC, h.id DESC")
+    List<TaskHistoryEntity> findExistingTasksByOrganizationIdOrderByTimestampDesc(@Param("organizationId") Long organizationId);
+
+    // Histórico completo, exceto eventos DELETED anteriores ao corte da política de retenção
+    @Query("SELECT h FROM TaskHistoryEntity h LEFT JOIN FETCH h.user LEFT JOIN FETCH h.task WHERE h.organization.id = :organizationId AND (h.actionType <> 'DELETED' OR h.timestamp >= :cutoff) ORDER BY h.timestamp DESC, h.id DESC")
+    List<TaskHistoryEntity> findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(
+            @Param("organizationId") Long organizationId,
+            @Param("cutoff") LocalDateTime cutoff
+    );
+
     @Query("SELECT h FROM TaskHistoryEntity h LEFT JOIN FETCH h.user LEFT JOIN FETCH h.task WHERE h.organization.id = :organizationId AND h.actionType = 'DELETED' ORDER BY h.timestamp DESC, h.id DESC")
     List<TaskHistoryEntity> findDeletedByOrganizationIdOrderByTimestampDesc(@Param("organizationId") Long organizationId);
 

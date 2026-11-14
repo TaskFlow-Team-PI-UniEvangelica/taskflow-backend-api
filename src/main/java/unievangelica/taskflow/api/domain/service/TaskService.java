@@ -436,17 +436,34 @@ public class TaskService {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Linha do tempo de auditoria da organização.
+     * - MEMBER: apenas eventos de tarefas existentes. Tarefas excluídas (inclusive o evento DELETED e
+     *   os eventos anteriores à exclusão) são visíveis somente para cargos acima de MEMBER (RNE-006 / RF-008).
+     * - OWNER, SUB_OWNER e MANAGER: histórico completo, respeitando a retenção de excluídas
+     *   (deletedTasksRetentionDays) para os eventos DELETED, como no histórico de excluídas.
+     */
     public List<TaskHistoryResponseDTO> getOrganizationHistory(Long organizationId, UserEntity userLogado) {
         OrganizationEntity organization = organizationRepository.findById(organizationId)
             .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
 
-        boolean isMember = organization.getMembers().stream()
-                .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
-        if (!isMember) {
-            throw new SecurityException("Você não tem acesso a esta organização.");
+        OrganizationMemberEntity membership = organization.getMembers().stream()
+                .filter(m -> m.getUser().getId().equals(userLogado.getId()))
+                .findFirst()
+                .orElseThrow(() -> new SecurityException("Você não tem acesso a esta organização."));
+
+        List<TaskHistoryEntity> historico;
+        if (membership.getRole() == OrganizationRole.MEMBER) {
+            historico = taskHistoryRepository.findExistingTasksByOrganizationIdOrderByTimestampDesc(organizationId);
+        } else {
+            Integer retentionDays = organization.getDeletedTasksRetentionDays();
+            historico = (retentionDays != null && retentionDays > 0)
+                    ? taskHistoryRepository.findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(
+                            organizationId, LocalDateTime.now().minusDays(retentionDays))
+                    : taskHistoryRepository.findByOrganizationIdOrderByTimestampDesc(organizationId);
         }
 
-        return taskHistoryRepository.findByOrganizationIdOrderByTimestampDesc(organizationId).stream()
+        return historico.stream()
             .map(this::converterHistoricoParaDTO)
             .collect(Collectors.toList());
     }
