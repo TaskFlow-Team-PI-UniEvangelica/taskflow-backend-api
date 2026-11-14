@@ -471,9 +471,10 @@ public class TaskService {
     /**
      * Retorna o histórico de tarefas excluídas da organização.
      * Visível apenas para cargos acima de MEMBER (OWNER, SUB_OWNER, MANAGER).
-     * Aplica automaticamente a política de retenção em dias configurada pelo OWNER.
+     * Lista apenas os registros dentro da retenção configurada pelo OWNER. O expurgo físico dos
+     * registros vencidos é feito pelo DeletedTaskHistoryPurgeJob (consulta sem efeito colateral).
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public List<TaskHistoryResponseDTO> getDeletedTasksHistory(Long organizationId, UserEntity userLogado) {
         OrganizationEntity organization = organizationRepository.findById(organizationId)
             .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
@@ -490,7 +491,6 @@ public class TaskService {
         Integer retentionDays = organization.getDeletedTasksRetentionDays();
         if (retentionDays != null && retentionDays > 0) {
             LocalDateTime cutoff = LocalDateTime.now().minusDays(retentionDays);
-            taskHistoryRepository.deleteExpiredDeletedHistory(organizationId, cutoff);
             return taskHistoryRepository.findDeletedByOrganizationIdSinceOrderByTimestampDesc(organizationId, cutoff)
                     .stream()
                     .map(this::converterHistoricoParaDTO)

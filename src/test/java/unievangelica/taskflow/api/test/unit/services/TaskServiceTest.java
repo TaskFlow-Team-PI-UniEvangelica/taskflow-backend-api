@@ -321,7 +321,7 @@ public class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("Deve buscar histórico de tarefas excluídas para MANAGER aplicando retenção e bloquear para MEMBER")
+    @DisplayName("Deve buscar histórico de tarefas excluídas para MANAGER aplicando retenção, sem expurgar, e bloquear para MEMBER")
     void testarGetDeletedTasksHistoryComRetencaoERbac() {
         UserEntity manager = new UserEntity();
         manager.setId(1L);
@@ -365,12 +365,12 @@ public class TaskServiceTest {
         // MEMBER deve ser bloqueado
         assertThrows(SecurityException.class, () -> taskService.getDeletedTasksHistory(10L, member));
 
-        // MANAGER tem acesso e expurga registros antigos
+        // MANAGER tem acesso; a consulta filtra pela retenção e não expurga (o expurgo é do job agendado)
         List<TaskHistoryResponseDTO> result = taskService.getDeletedTasksHistory(10L, manager);
         assertThat(result).hasSize(1);
         assertThat(result.get(0).taskNumber()).isEqualTo(4);
         assertThat(result.get(0).taskTitle()).isEqualTo("Task Excluída #4");
-        verify(taskHistoryRepository, times(1)).deleteExpiredDeletedHistory(eq(10L), any(LocalDateTime.class));
+        verify(taskHistoryRepository, never()).deleteExpiredDeletedHistory(anyLong(), any());
     }
 
     // --- Histórico da organização (RNE-006: excluídas só para cargos acima de MEMBER) ---
