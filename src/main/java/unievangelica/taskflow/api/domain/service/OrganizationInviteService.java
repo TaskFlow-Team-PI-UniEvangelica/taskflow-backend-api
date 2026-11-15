@@ -5,6 +5,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ConviteExpiradoException;
 import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.event.InviteCreatedEvent;
 import unievangelica.taskflow.api.domain.persistence.entities.*;
@@ -125,7 +126,8 @@ public class OrganizationInviteService {
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    // Convite vencido: grava o status EXPIRED mesmo respondendo erro (sem rollback dessa exceção)
+    @Transactional(noRollbackFor = ConviteExpiradoException.class)
     public void acceptInvite(Long inviteId) {
         UserEntity user = getAuthenticatedUser();
         OrganizationInviteEntity invite = inviteRepository.findById(inviteId)
@@ -138,7 +140,7 @@ public class OrganizationInviteService {
         if (invite.getExpiresAt() != null && invite.getExpiresAt().isBefore(LocalDateTime.now())) {
             invite.setStatus(InviteStatus.EXPIRED);
             inviteRepository.save(invite);
-            throw new BusinessException("Este convite expirou.");
+            throw new ConviteExpiradoException();
         }
 
         invite.setStatus(InviteStatus.ACCEPTED);
