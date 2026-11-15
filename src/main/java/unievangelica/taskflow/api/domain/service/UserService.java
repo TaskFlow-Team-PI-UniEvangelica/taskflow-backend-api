@@ -8,12 +8,16 @@ import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
+import unievangelica.taskflow.api.domain.persistence.repositories.UserAvatarRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
+import unievangelica.taskflow.api.domain.persistence.entities.UserAvatarEntity;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class UserService {
@@ -23,10 +27,13 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final OrganizationMemberRepository memberRepository;
+    private final UserAvatarRepository avatarRepository;
 
-    public UserService(UserRepository userRepository, OrganizationMemberRepository memberRepository) {
+    public UserService(UserRepository userRepository, OrganizationMemberRepository memberRepository,
+                       UserAvatarRepository avatarRepository) {
         this.userRepository = userRepository;
         this.memberRepository = memberRepository;
+        this.avatarRepository = avatarRepository;
     }
 
     public UserEntity buscarPorKeycloakId(String keycloakId) {
@@ -71,16 +78,21 @@ public class UserService {
     }
 
     /**
-     * Retorna o usuário cujo avatar foi pedido, desde que o solicitante seja a própria pessoa ou
-     * tenha ao menos uma organização em comum com ela. Caso contrário responde como "não encontrado"
-     * (mesma resposta de um ID inexistente), para não revelar quais usuários existem.
+     * Retorna o avatar pedido, desde que o solicitante seja a própria pessoa ou tenha ao menos uma
+     * organização em comum com ela. Caso contrário responde como "não encontrado" (mesma resposta de
+     * um ID inexistente), para não revelar quais usuários existem. Vazio se o usuário não tem avatar.
      */
-    public UserEntity buscarParaAvatar(Long id, String keycloakIdSolicitante) {
+    @Transactional(readOnly = true)
+    public Optional<UserAvatarEntity> buscarAvatar(Long id, String keycloakIdSolicitante) {
         UserEntity solicitante = buscarPorKeycloakId(keycloakIdSolicitante);
         if (!solicitante.getId().equals(id) && !memberRepository.compartilhamOrganizacao(solicitante.getId(), id)) {
             throw new ResourceNotFoundException("Usuário não encontrado");
         }
-        return buscarPorId(id);
+        Optional<UserAvatarEntity> avatar = avatarRepository.findById(id);
+        if (avatar.isEmpty() && !userRepository.userExistsById(id)) {
+            throw new ResourceNotFoundException("Usuário não encontrado");
+        }
+        return avatar;
     }
 
 
@@ -98,13 +110,15 @@ public class UserService {
         // O tipo é identificado pelo conteúdo (magic bytes), não pelo Content-Type enviado pelo cliente
         String detectedType = ImageTypeDetector.detect(content)
                 .orElseThrow(() -> new BusinessException("Formato de imagem não suportado. Use JPEG, PNG, WEBP ou GIF."));
-        userRepository.updateAvatar(keycloakId, content, detectedType);
+        UserEntity user = buscarPorKeycloakId(keycloakId);
+        avatarRepository.save(new UserAvatarEntity(user.getId(), content, detectedType, LocalDateTime.now()));
     }
 
     
     @Transactional
     public void deleteAvatar(String keycloakId) {
-        userRepository.removeAvatar(keycloakId);
+        UserEntity user = buscarPorKeycloakId(keycloakId);
+        avatarRepository.deleteById(user.getId());
     }
 
     

@@ -12,11 +12,14 @@ import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.repositories.UserAvatarRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
+import unievangelica.taskflow.api.domain.persistence.entities.UserAvatarEntity;
 import unievangelica.taskflow.api.domain.service.UserService;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -32,6 +35,9 @@ public class UserServiceTest {
 
     @Mock
     private OrganizationMemberRepository memberRepository;
+
+    @Mock
+    private UserAvatarRepository avatarRepository;
 
     @InjectMocks
     private UserService userService;
@@ -164,11 +170,13 @@ public class UserServiceTest {
     @Test
     @DisplayName("Avatar: a própria pessoa obtém o seu sem consultar organizações")
     void testAvatarDoProprioUsuario() {
-        UserEntity eu = solicitante(1L);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(eu));
+        solicitante(1L);
+        UserAvatarEntity avatar = new UserAvatarEntity(1L, new byte[]{1}, "image/png", LocalDateTime.now());
+        when(avatarRepository.findById(1L)).thenReturn(Optional.of(avatar));
 
-        assertSame(eu, userService.buscarParaAvatar(1L, "kc-solicitante"));
+        assertSame(avatar, userService.buscarAvatar(1L, "kc-solicitante").orElseThrow());
         verifyNoInteractions(memberRepository);
+        verify(userRepository, never()).userExistsById(anyLong());
     }
 
     @Test
@@ -176,9 +184,11 @@ public class UserServiceTest {
     void testAvatarDeColegaDeOrganizacao() {
         solicitante(2L);
         when(memberRepository.compartilhamOrganizacao(2L, 1L)).thenReturn(true);
-        when(userRepository.findById(1L)).thenReturn(Optional.of(userMock));
+        when(userRepository.userExistsById(1L)).thenReturn(true);
+        when(avatarRepository.findById(1L)).thenReturn(Optional.empty());
 
-        assertSame(userMock, userService.buscarParaAvatar(1L, "kc-solicitante"));
+        // Colega sem avatar: vazio (o controller responde 404 sem corpo)
+        assertTrue(userService.buscarAvatar(1L, "kc-solicitante").isEmpty());
     }
 
     @Test
@@ -188,9 +198,19 @@ public class UserServiceTest {
         when(memberRepository.compartilhamOrganizacao(2L, 1L)).thenReturn(false);
 
         ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
-                () -> userService.buscarParaAvatar(1L, "kc-solicitante"));
+                () -> userService.buscarAvatar(1L, "kc-solicitante"));
 
         assertEquals("Usuário não encontrado", ex.getMessage());
-        verify(userRepository, never()).findById(anyLong());
+        verifyNoInteractions(avatarRepository);
+    }
+
+    @Test
+    @DisplayName("Avatar: usuário inexistente (mas permitido) responde 'não encontrado'")
+    void testAvatarDeUsuarioInexistente() {
+        solicitante(99L);
+        when(avatarRepository.findById(99L)).thenReturn(Optional.empty());
+        when(userRepository.userExistsById(99L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> userService.buscarAvatar(99L, "kc-solicitante"));
     }
 }

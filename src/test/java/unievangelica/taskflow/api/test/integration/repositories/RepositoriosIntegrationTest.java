@@ -50,8 +50,6 @@ class RepositoriosIntegrationTest {
         u.setNome(nome);
         u.setEmail(nome.toLowerCase() + "-" + UUID.randomUUID() + "@teste.local");
         u.setKeycloakId(UUID.randomUUID().toString());
-        u.setAvatar(new byte[]{1, 2, 3});
-        u.setAvatarType("image/png");
         em.persist(u);
         return u;
     }

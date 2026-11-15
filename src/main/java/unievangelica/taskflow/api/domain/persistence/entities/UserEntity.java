@@ -28,12 +28,8 @@ public class UserEntity {
 
     @Column(name = "keycloakId", unique = true)
     private String keycloakId;
-    @Basic(fetch = FetchType.LAZY)
-    @Column(name = "avatar")
-    private byte[] avatar;
 
-    @Column(name = "avatar_type")
-    private String avatarType;
+    // O avatar fica em user_avatars (UserAvatarEntity), lido só quando pedido (ALT-31)
 
     @CreationTimestamp
     @Column(name = "criado_em", updatable = false)

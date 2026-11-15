@@ -3,11 +3,15 @@ package unievangelica.taskflow.api.test.unit.services;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.persistence.entities.UserAvatarEntity;
+import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.repositories.UserAvatarRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.domain.service.ImageTypeDetector;
 import unievangelica.taskflow.api.domain.service.UserService;
@@ -30,6 +34,9 @@ public class AvatarUploadTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private UserAvatarRepository avatarRepository;
 
     @InjectMocks
     private UserService userService;
@@ -62,7 +69,7 @@ public class AvatarUploadTest {
                 () -> userService.updateAvatar("kc-1", arquivo));
 
         assertTrue(ex.getMessage().contains("Formato de imagem não suportado"));
-        verify(userRepository, never()).updateAvatar(anyString(), any(), anyString());
+        verifyNoInteractions(avatarRepository);
     }
 
     @Test
@@ -71,11 +78,25 @@ public class AvatarUploadTest {
         MockMultipartFile pngDeclaradoComoJpeg = new MockMultipartFile("file", "avatar.jpg", "image/jpeg", PNG);
         MockMultipartFile semContentType = new MockMultipartFile("file", "avatar", null, JPEG);
 
+        when(userRepository.findByKeycloakId("kc-1")).thenReturn(Optional.of(usuario(1L)));
+        when(userRepository.findByKeycloakId("kc-2")).thenReturn(Optional.of(usuario(2L)));
+
         userService.updateAvatar("kc-1", pngDeclaradoComoJpeg);
         userService.updateAvatar("kc-2", semContentType);
 
-        verify(userRepository).updateAvatar("kc-1", PNG, "image/png");
-        verify(userRepository).updateAvatar("kc-2", JPEG, "image/jpeg");
+        ArgumentCaptor<UserAvatarEntity> salvo = ArgumentCaptor.forClass(UserAvatarEntity.class);
+        verify(avatarRepository, times(2)).save(salvo.capture());
+        assertEquals(1L, salvo.getAllValues().get(0).getUserId());
+        assertEquals("image/png", salvo.getAllValues().get(0).getContentType());
+        assertArrayEquals(PNG, salvo.getAllValues().get(0).getContent());
+        assertEquals(2L, salvo.getAllValues().get(1).getUserId());
+        assertEquals("image/jpeg", salvo.getAllValues().get(1).getContentType());
+    }
+
+    private static UserEntity usuario(Long id) {
+        UserEntity u = new UserEntity();
+        u.setId(id);
+        return u;
     }
 
     @Test
@@ -84,6 +105,6 @@ public class AvatarUploadTest {
         MockMultipartFile vazio = new MockMultipartFile("file", "avatar.png", "image/png", new byte[0]);
 
         assertThrows(BusinessException.class, () -> userService.updateAvatar("kc-1", vazio));
-        verifyNoInteractions(userRepository);
+        verifyNoInteractions(userRepository, avatarRepository);
     }
 }

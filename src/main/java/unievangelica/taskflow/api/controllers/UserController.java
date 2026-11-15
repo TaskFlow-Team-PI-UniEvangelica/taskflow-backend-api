@@ -102,14 +102,12 @@ public class UserController {
     @GetMapping(value = "/{id}/avatar")
     public ResponseEntity<byte[]> getAvatar(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
                                             @Parameter(description = "ID do usuário") @PathVariable Long id) {
-        UserEntity user = userService.buscarParaAvatar(id, jwt.getSubject());
-        if (user.getAvatar() == null) {
-            return ResponseEntity.notFound().build();
-        }
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_TYPE, user.getAvatarType() != null ? user.getAvatarType() : "image/jpeg")
-                .header("X-Content-Type-Options", "nosniff")
-                .body(user.getAvatar());
+        return userService.buscarAvatar(id, jwt.getSubject())
+                .map(avatar -> ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_TYPE, avatar.getContentType())
+                        .header("X-Content-Type-Options", "nosniff")
+                        .body(avatar.getContent()))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @Operation(summary = "Excluir Avatar", description = "Deleta a imagem de perfil do usuário logado")

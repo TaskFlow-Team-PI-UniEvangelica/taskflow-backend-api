@@ -17,8 +17,12 @@ import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
 import unievangelica.taskflow.api.controllers.UserController;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.entities.UserAvatarEntity;
 import unievangelica.taskflow.api.domain.service.UserService;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 
@@ -136,14 +140,23 @@ public class UserControllerTest {
     @Test
     @DisplayName("GET /user/{id}/avatar repassa o solicitante (sub do token) para a checagem de acesso")
     void avatarUsaOSolicitanteDoToken() throws Exception {
-        mockUser.setAvatar(new byte[]{1, 2, 3});
-        mockUser.setAvatarType("image/png");
-        when(userService.buscarParaAvatar(5L, "keycloak-id-123")).thenReturn(mockUser);
+        when(userService.buscarAvatar(5L, "keycloak-id-123")).thenReturn(Optional.of(
+                new UserAvatarEntity(5L, new byte[]{1, 2, 3}, "image/png", LocalDateTime.now())));
 
         mockMvc.perform(get("/user/5/avatar"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Content-Type", "image/png"));
+                .andExpect(header().string("Content-Type", "image/png"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(content().bytes(new byte[]{1, 2, 3}));
 
         verify(userService, never()).buscarPorId(any());
+    }
+
+    @Test
+    @DisplayName("GET /user/{id}/avatar responde 404 sem corpo quando o usuário não tem avatar")
+    void avatarInexistente() throws Exception {
+        when(userService.buscarAvatar(5L, "keycloak-id-123")).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/user/5/avatar")).andExpect(status().isNotFound());
     }
 }
