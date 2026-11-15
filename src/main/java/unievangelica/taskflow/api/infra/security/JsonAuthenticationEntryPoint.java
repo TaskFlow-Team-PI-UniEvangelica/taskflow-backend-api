@@ -9,11 +9,11 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import tools.jackson.databind.json.JsonMapper;
+import unievangelica.taskflow.api.infra.exceptions.ProblemDetails;
+
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -35,14 +35,7 @@ public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 authException != null ? authException.getMessage() : "sem detalhes");
 
         // Mesmo formato do GlobalExceptionHandler: ProblemDetail (RFC 9457) + message, error e timestamp
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("title", HttpStatus.UNAUTHORIZED.getReasonPhrase());
-        body.put("status", HttpStatus.UNAUTHORIZED.value());
-        body.put("detail", MENSAGEM);
-        body.put("instance", request.getRequestURI());
-        body.put("message", MENSAGEM);
-        body.put("error", HttpStatus.UNAUTHORIZED.getReasonPhrase());
-        body.put("timestamp", LocalDateTime.now().toString());
+        Map<String, Object> body = ProblemDetails.asMap(HttpStatus.UNAUTHORIZED, MENSAGEM, request.getRequestURI());
 
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
