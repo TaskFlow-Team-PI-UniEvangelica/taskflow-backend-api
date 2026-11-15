@@ -65,8 +65,10 @@ public class UserController {
         return ResponseEntity.ok(usuarioAtualizado);
     }
 
-    @Operation(summary = "Deletar usuário por ID")
+    @Operation(summary = "Deletar usuário por ID",
+            description = "Exclui a própria conta. Bloqueado (409) enquanto o usuário for OWNER de alguma organização.")
     @ApiResponse(responseCode = "204", description = "Usuário deletado sem conteúdo de retorno")
+    @ApiResponse(responseCode = "409", description = "Usuário é proprietário de organização; transfira a posse antes")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarUsuario(
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ConflictException;
 import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.infra.exceptions.GlobalExceptionHandler;
 
@@ -45,6 +46,9 @@ public class GlobalExceptionHandlerTest {
 
         @GetMapping("/regra")
         void regra() { throw new BusinessException("Este convite expirou."); }
+
+        @GetMapping("/conflito")
+        void conflito() { throw new ConflictException("Transfira a posse antes de excluir sua conta."); }
 
         @GetMapping("/proibido")
         void proibido() { throw new SecurityException("Você não tem permissão para alterar esta tarefa."); }
@@ -103,6 +107,13 @@ public class GlobalExceptionHandlerTest {
     @DisplayName("BusinessException deve responder 400 com a mensagem da regra")
     void regraDeNegocioRetorna400() throws Exception {
         assertFormato(mockMvc.perform(get("/regra")), 400, "Bad Request", "Este convite expirou.");
+    }
+
+    @Test
+    @DisplayName("ConflictException deve responder 409 com a mensagem orientando o usuário")
+    void conflitoRetorna409() throws Exception {
+        assertFormato(mockMvc.perform(get("/conflito")), 409, "Conflict",
+                "Transfira a posse antes de excluir sua conta.");
     }
 
     @Test

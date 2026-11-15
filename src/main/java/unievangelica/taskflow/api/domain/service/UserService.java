@@ -3,8 +3,11 @@ package unievangelica.taskflow.api.domain.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ConflictException;
 import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
+import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
@@ -15,10 +18,15 @@ import java.io.IOException;
 @Service
 public class UserService {
 
-    private final UserRepository userRepository;
+    static final String MENSAGEM_PROPRIETARIO = "Você é proprietário de uma ou mais organizações. "
+            + "Transfira a posse ou exclua as organizações antes de excluir sua conta.";
 
-    public UserService(UserRepository userRepository) {
+    private final UserRepository userRepository;
+    private final OrganizationMemberRepository memberRepository;
+
+    public UserService(UserRepository userRepository, OrganizationMemberRepository memberRepository) {
         this.userRepository = userRepository;
+        this.memberRepository = memberRepository;
     }
 
     public UserEntity buscarPorKeycloakId(String keycloakId) {
@@ -48,6 +56,11 @@ public class UserService {
     public void deletarUsuario(Long id){
         if (!userRepository.userExistsById(id)) {
             throw new ResourceNotFoundException("Usuário não encontrado");
+        }
+        // O vínculo em organization_users é apagado em cascata: excluir o OWNER deixaria a
+        // organização sem dono (RNE-007). A posse precisa ser transferida antes.
+        if (memberRepository.existsByUserIdAndRole(id, OrganizationRole.OWNER)) {
+            throw new ConflictException(MENSAGEM_PROPRIETARIO);
         }
         userRepository.deleteUserById(id);
     }

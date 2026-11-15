@@ -7,7 +7,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import unievangelica.taskflow.api.domain.exception.ConflictException;
 import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
+import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
+import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.domain.service.UserService;
@@ -26,6 +29,9 @@ public class UserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private OrganizationMemberRepository memberRepository;
 
     @InjectMocks
     private UserService userService;
@@ -111,5 +117,37 @@ public class UserServiceTest {
         verify(userRepository).updateUser(1L, "Nome Novo", "atual@test.com");
         assertEquals("atual@test.com", resposta.email());
         assertEquals("Nome Novo", resposta.nome());
+    }
+
+    @Test
+    @DisplayName("OWNER de alguma organização não pode excluir a conta (409) e nada é apagado")
+    void testExclusaoDeContaBloqueadaParaOwner() {
+        when(userRepository.userExistsById(1L)).thenReturn(true);
+        when(memberRepository.existsByUserIdAndRole(1L, OrganizationRole.OWNER)).thenReturn(true);
+
+        ConflictException ex = assertThrows(ConflictException.class, () -> userService.deletarUsuario(1L));
+
+        assertTrue(ex.getMessage().contains("Transfira a posse"));
+        verify(userRepository, never()).deleteUserById(anyLong());
+    }
+
+    @Test
+    @DisplayName("Quem não é OWNER (MEMBER, SUB_OWNER etc.) exclui a própria conta normalmente")
+    void testExclusaoDeContaDeNaoOwner() {
+        when(userRepository.userExistsById(1L)).thenReturn(true);
+        when(memberRepository.existsByUserIdAndRole(1L, OrganizationRole.OWNER)).thenReturn(false);
+
+        userService.deletarUsuario(1L);
+
+        verify(userRepository).deleteUserById(1L);
+    }
+
+    @Test
+    @DisplayName("Exclusão de usuário inexistente responde 404 sem consultar vínculos")
+    void testExclusaoDeUsuarioInexistente() {
+        when(userRepository.userExistsById(99L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> userService.deletarUsuario(99L));
+        verifyNoInteractions(memberRepository);
     }
 }
