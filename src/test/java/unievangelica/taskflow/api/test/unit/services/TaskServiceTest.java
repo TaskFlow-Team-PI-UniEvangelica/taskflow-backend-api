@@ -135,7 +135,7 @@ public class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("Deve criar tarefa incrementando taskNumber por organização e gravando histórico CREATED")
+    @DisplayName("Deve criar tarefa com taskNumber reservado atomicamente no banco e gravar histórico CREATED")
     void testarCriarTaskSemDefinirAtributos() {
         UserEntity criador = new UserEntity();
         criador.setId(1L);
@@ -157,6 +157,7 @@ public class TaskServiceTest {
 
         when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
         when(organizationRepository.findById(100L)).thenReturn(Optional.of(orgMock));
+        when(organizationRepository.nextTaskNumber(100L)).thenReturn(5);
 
         TaskEntity taskMock = new TaskEntity();
         taskMock.setId(10L);
@@ -169,13 +170,18 @@ public class TaskServiceTest {
         taskMock.setOrganization(orgMock);
         taskMock.setResponsaveis(List.of());
 
-        when(taskRepository.save(any(TaskEntity.class))).thenReturn(taskMock);
+        ArgumentCaptor<TaskEntity> taskCaptor = ArgumentCaptor.forClass(TaskEntity.class);
+        when(taskRepository.save(taskCaptor.capture())).thenReturn(taskMock);
 
         TaskResponseDTO resultado = taskService.criarTask(requestDTO, criador);
 
         assertThat(resultado.titulo()).isEqualTo("Unit Test Service Titulo");
         assertThat(resultado.taskNumber()).isEqualTo(5);
-        assertThat(orgMock.getLastTaskNumber()).isEqualTo(5);
+        // O número vem do incremento atômico no banco; a organização não é regravada (evita sobrescrever configurações)
+        assertThat(taskCaptor.getValue().getTaskNumber()).isEqualTo(5);
+        verify(organizationRepository, times(1)).nextTaskNumber(100L);
+        verify(organizationRepository, never()).save(any());
+        assertThat(orgMock.getLastTaskNumber()).isEqualTo(4);
 
         ArgumentCaptor<TaskHistoryEntity> historyCaptor = ArgumentCaptor.forClass(TaskHistoryEntity.class);
         verify(taskHistoryRepository, times(1)).save(historyCaptor.capture());
@@ -371,6 +377,31 @@ public class TaskServiceTest {
         assertThat(result.get(0).taskNumber()).isEqualTo(4);
         assertThat(result.get(0).taskTitle()).isEqualTo("Task Excluída #4");
         verify(taskHistoryRepository, never()).deleteExpiredDeletedHistory(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Não deve reservar taskNumber quando a criação falha na validação")
+    void testarCriarTaskInvalidaNaoReservaNumero() {
+        UserEntity criador = new UserEntity();
+        criador.setId(1L);
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(100L);
+        org.setMembers(List.of());
+
+        TaskRequestDTO comResponsavelInexistente = new TaskRequestDTO(
+                "Titulo", null, null, null, null, List.of(77L), 100L);
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
+        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+        when(userRepository.userFindAllByIds(List.of(77L))).thenReturn(List.of());
+
+        assertThrows(IllegalArgumentException.class, () -> taskService.criarTask(comResponsavelInexistente, criador));
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(false);
+        assertThrows(SecurityException.class, () -> taskService.criarTask(comResponsavelInexistente, criador));
+
+        verify(organizationRepository, never()).nextTaskNumber(anyLong());
+        verify(taskRepository, never()).save(any());
     }
 
     // --- Histórico da organização (RNE-006: excluídas só para cargos acima de MEMBER) ---

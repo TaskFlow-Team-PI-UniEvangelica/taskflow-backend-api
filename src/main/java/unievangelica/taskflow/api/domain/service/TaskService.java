@@ -84,12 +84,7 @@ public class TaskService {
         OrganizationEntity organization = organizationRepository.findById(orgId)
             .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada."));
 
-        int nextTaskNumber = organization.getLastTaskNumber() + 1;
-        organization.setLastTaskNumber(nextTaskNumber);
-        organizationRepository.save(organization);
-
         TaskEntity novaTarefa = new TaskEntity();
-        novaTarefa.setTaskNumber(nextTaskNumber);
         novaTarefa.setTitulo(data.titulo());
         novaTarefa.setDescricao(data.descricao());
         novaTarefa.setCriador(criadorLogado);
@@ -121,6 +116,10 @@ public class TaskService {
             
             novaTarefa.setResponsaveis(responsaveis);
         }
+
+        // Numeração atômica no banco, após as validações (a linha da organização fica travada até o commit)
+        int nextTaskNumber = organizationRepository.nextTaskNumber(orgId);
+        novaTarefa.setTaskNumber(nextTaskNumber);
 
         TaskEntity taskLocal = taskRepository.save(novaTarefa);
         if (taskLocal.getTaskNumber() == null) {
