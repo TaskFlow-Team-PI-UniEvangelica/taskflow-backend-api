@@ -397,7 +397,7 @@ public class OrganizationService {
         }
 
         OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
-                .orElseThrow(() -> new BusinessException("Você não é membro desta organização."));
+                .orElseThrow(() -> new SecurityException("Você não é membro desta organização."));
         if (requester.getRole() == OrganizationRole.SUB_OWNER && member.getRole() == OrganizationRole.SUB_OWNER) {
             throw new SecurityException("SUB_OWNER não pode alterar o papel de outro SUB_OWNER.");
         }
@@ -412,7 +412,7 @@ public class OrganizationService {
     @Transactional
     public void transferirPosse(Long organizationId, Long novoOwnerId, UserEntity userLogado) {
         OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
-                .orElseThrow(() -> new BusinessException("Você não é membro desta organização."));
+                .orElseThrow(() -> new SecurityException("Você não é membro desta organização."));
 
         if (requester.getRole() != OrganizationRole.OWNER) {
             throw new SecurityException("Apenas o OWNER pode transferir a posse da organização.");
@@ -454,7 +454,7 @@ public class OrganizationService {
 
         if (!isSelfRemoval) {
             OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
-                    .orElseThrow(() -> new BusinessException("Você não é membro desta organização."));
+                    .orElseThrow(() -> new SecurityException("Você não é membro desta organização."));
 
             if (requester.getRole() == OrganizationRole.SUB_OWNER && memberTarget.getRole() == OrganizationRole.SUB_OWNER) {
                 throw new SecurityException("SUB_OWNER não pode remover outro SUB_OWNER.");
@@ -492,7 +492,7 @@ public class OrganizationService {
     @Transactional
     public void deletarOrganizacao(Long organizationId, UserEntity userLogado) {
         OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
-                .orElseThrow(() -> new BusinessException("Você não é membro desta organização."));
+                .orElseThrow(() -> new SecurityException("Você não é membro desta organização."));
 
         if (requester.getRole() != OrganizationRole.OWNER) {
             throw new SecurityException("Apenas o OWNER principal pode excluir a organização.");

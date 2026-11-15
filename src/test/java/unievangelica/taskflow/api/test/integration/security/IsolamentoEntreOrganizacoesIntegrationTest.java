@@ -89,12 +89,10 @@ class IsolamentoEntreOrganizacoesIntegrationTest {
                 Arguments.of("GET", "/task/organization/{org}/history", null, 403),
                 Arguments.of("GET", "/task/organization/{org}/deleted-history", null, 403),
                 Arguments.of("PUT", "/organization/{org}", "{\"nome\":\"tomada\"}", 403),
-                // 400 (e não 403): deletarOrganizacao e transferirPosse tratam "não é membro" como
-                // BusinessException. O acesso é barrado; a padronização para 403 depende de autorização.
-                Arguments.of("DELETE", "/organization/{org}", null, 400),
+                Arguments.of("DELETE", "/organization/{org}", null, 403),
                 Arguments.of("GET", "/organization/{org}/members", null, 403),
                 Arguments.of("PUT", "/organization/{org}/members/{ana}/role", "{\"role\":\"MEMBER\"}", 403),
-                Arguments.of("PUT", "/organization/{org}/members/{ana}/transfer-ownership", null, 400),
+                Arguments.of("PUT", "/organization/{org}/members/{ana}/transfer-ownership", null, 403),
                 Arguments.of("DELETE", "/organization/{org}/members/{ana}", null, 403),
                 Arguments.of("POST", "/organization/{org}/invites", "{\"email\":\"intruso@teste.local\",\"role\":\"SUB_OWNER\"}", 403),
                 Arguments.of("GET", "/user/{ana}/avatar", null, 404),

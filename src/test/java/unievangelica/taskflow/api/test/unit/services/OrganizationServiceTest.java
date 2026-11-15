@@ -473,4 +473,29 @@ public class OrganizationServiceTest {
         assertEquals("My Org", orgs.get(0).nome());
         verify(organizationMemberRepository, never()).findByUserId(anyLong());
     }
+
+    // --- Quem não é membro recebe 403 (SecurityException), como nas demais rotas ---
+
+    @Test
+    @DisplayName("Não membro tentando transferir a posse recebe SecurityException (403)")
+    void testTransferirPosseNaoMembro() {
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(10L, 99L)).thenReturn(Optional.empty());
+        UserEntity estranho = new UserEntity();
+        estranho.setId(99L);
+
+        SecurityException ex = assertThrows(SecurityException.class,
+                () -> organizationService.transferirPosse(10L, 1L, estranho));
+        assertEquals("Você não é membro desta organização.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Não membro tentando excluir a organização recebe SecurityException (403) e nada é excluído")
+    void testDeletarOrganizacaoNaoMembro() {
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(10L, 99L)).thenReturn(Optional.empty());
+        UserEntity estranho = new UserEntity();
+        estranho.setId(99L);
+
+        assertThrows(SecurityException.class, () -> organizationService.deletarOrganizacao(10L, estranho));
+        verify(organizationRepository, never()).delete(any());
+    }
 }
