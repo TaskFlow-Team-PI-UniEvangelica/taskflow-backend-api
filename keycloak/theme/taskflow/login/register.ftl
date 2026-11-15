@@ -104,6 +104,9 @@
                             <input type="text" id="username" name="username" value="${(register.formData.username!'')}" autocomplete="username" />
                         </div>
 
+                        <#-- Keycloak 26: com a verificação de e-mail ligada, a senha é definida depois que o
+                             e-mail é confirmado (passwordRequired fica indefinido e o servidor ignora a senha do formulário) -->
+                        <#if passwordRequired??>
                         <div class="input-group register-group">
                             <label for="password">Senha</label>
                             <input type="password" id="password" name="password" autocomplete="new-password" placeholder="Sua senha" required />
@@ -113,6 +116,9 @@
                             <label for="password-confirm">Confirme a senha</label>
                             <input type="password" id="password-confirm" name="password-confirm" placeholder="Confirme a senha" required />
                         </div>
+                        <#else>
+                        <p class="subtitle register-note">Depois de criar a conta, você receberá um e-mail de confirmação. Ao confirmar, você definirá a sua senha de acesso.</p>
+                        </#if>
 
                         <div class="actions">
                             <a href="${url.loginUrl}" class="cancelLink">Cancelar</a>

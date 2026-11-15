@@ -48,8 +48,9 @@ services:
       KC_DB_URL: jdbc:postgresql://db:5432/${KC_DB_NAME}
       KC_DB_USERNAME: ${KC_DB_USER}
       KC_DB_PASSWORD: ${KC_DB_PASSWORD}
-      KEYCLOAK_ADMIN: ${KC_ADMIN_USER:?defina KC_ADMIN_USER}
-      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?defina KC_ADMIN_PASSWORD}
+      # Keycloak 26: KEYCLOAK_ADMIN* foi substituído por KC_BOOTSTRAP_ADMIN_* (só usado se o realm master não tiver admin)
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:?defina KC_ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?defina KC_ADMIN_PASSWORD}
       KC_HOSTNAME: ${KC_DOMAIN:?defina KC_DOMAIN}
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
@@ -58,7 +59,8 @@ services:
       db: { condition: service_healthy }
     networks: [data, edge]
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      # Keycloak 25+: /health fica na interface de gerenciamento (porta 9000), não mais na 8080
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
       interval: 15s
       timeout: 5s
       retries: 20
