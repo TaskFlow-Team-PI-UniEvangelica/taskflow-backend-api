@@ -51,6 +51,7 @@ public class SpringSecurityConfigTest {
     static final String ORIGEM_FRONTEND = "http://frontend.teste";
     static final String ORIGEM_VITE = "http://localhost:5173";
     static final String TOKEN_VALIDO = "token-valido";
+    static final String MENSAGEM_401 = "Token de acesso ausente, inválido ou expirado.";
 
     @Configuration
     @EnableWebMvc
@@ -111,21 +112,34 @@ public class SpringSecurityConfigTest {
     // --- Autenticação ---
 
     @Test
-    @DisplayName("Rota protegida sem token deve retornar 401 com corpo JSON")
+    @DisplayName("Rota protegida sem token deve retornar 401 com corpo JSON, mensagem fixa e WWW-Authenticate")
     void rotaProtegidaSemTokenRetorna401() throws Exception {
         mockMvc.perform(get("/protegido"))
                 .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"))
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.error").value("Unauthorized"))
-                .andExpect(jsonPath("$.message").exists());
+                .andExpect(jsonPath("$.message").value(MENSAGEM_401))
+                .andExpect(jsonPath("$.timestamp").exists());
     }
 
     @Test
     @DisplayName("Rota protegida com token inválido deve retornar 401")
     void rotaProtegidaComTokenInvalidoRetorna401() throws Exception {
+        // A mensagem interna ("assinatura inválida") não pode chegar ao cliente
         mockMvc.perform(get("/protegido").header(HttpHeaders.AUTHORIZATION, "Bearer token-adulterado"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.status").value(401));
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value(MENSAGEM_401));
+    }
+
+    @Test
+    @DisplayName("Token malformado com aspas, barra invertida e chave deve gerar 401 com JSON válido")
+    void tokenComCaracteresEspeciaisGeraJsonValido() throws Exception {
+        mockMvc.perform(get("/protegido").header(HttpHeaders.AUTHORIZATION, "Bearer a\"b\\c}.d"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.message").value(MENSAGEM_401));
     }
 
     @Test
@@ -156,7 +170,8 @@ public class SpringSecurityConfigTest {
                             .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "PATCH"))
                     .andExpect(status().isOk())
                     .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, origem))
-                    .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS, "true"));
+                    // API stateless com token Bearer: não libera envio de credenciais (cookies) entre origens
+                    .andExpect(header().doesNotExist(HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS));
         }
     }
 
