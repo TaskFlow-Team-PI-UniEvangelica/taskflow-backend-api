@@ -12,7 +12,6 @@ import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.domain.service.UserService;
 
-import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,17 +72,5 @@ public class UserServiceTest {
         assertEquals("Novo Nome", userMock.getNome());
         assertEquals("novo@test.com", userMock.getEmail());
         verify(userRepository, times(1)).updateUser(1L, "Novo Nome", "novo@test.com");
-    }
-
-    @Test
-    @DisplayName("Deve listar todos os usuários")
-    void testListarTodos() {
-        when(userRepository.userFindAll()).thenReturn(List.of(userMock));
-
-        List<unievangelica.taskflow.api.dto.response.UserResponseDTO> resultados = userService.listarUsuarios();
-
-        assertFalse(resultados.isEmpty());
-        assertEquals(1, resultados.size());
-        verify(userRepository, times(1)).userFindAll();
     }
 }

@@ -33,9 +33,6 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.id = :id")
     boolean userExistsById(@Param("id") Long id);
 
-    @Query("SELECT u FROM User u")
-    List<UserEntity> userFindAll();
-
     @Query("SELECT u FROM User u WHERE u.id IN :ids")
     List<UserEntity> userFindAllByIds(@Param("ids") List<Long> ids);
     

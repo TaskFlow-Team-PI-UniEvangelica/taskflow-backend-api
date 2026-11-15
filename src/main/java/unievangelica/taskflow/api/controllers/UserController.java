@@ -16,7 +16,6 @@ import unievangelica.taskflow.api.domain.service.UserService;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
-import java.util.List;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -30,14 +29,6 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
-    }
-
-    @Operation(summary = "Listar todos os usuários do sistema")
-    @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso")
-    @GetMapping
-    public ResponseEntity<List<UserResponseDTO>> listarTodosUsuarios(){
-        List<UserResponseDTO> users = userService.listarUsuarios();
-        return ResponseEntity.ok(users);
     }
 
     @Operation(summary = "Obter perfil do usuário logado", description = "Baseado no JWT enviado no cabeçalho")

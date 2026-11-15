@@ -9,8 +9,6 @@ import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
-import java.util.List;
-import java.util.stream.Collectors;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 
@@ -25,12 +23,6 @@ public class UserService {
 
     public UserEntity buscarPorKeycloakId(String keycloakId) {
         return userRepository.findByKeycloakId(keycloakId).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
-    }
-
-    public List<UserResponseDTO> listarUsuarios() {
-        return userRepository.userFindAll().stream()
-                .map(this::converterParaDTO)
-                .collect(Collectors.toList());
     }
 
     public UserResponseDTO obterPerfilUsuario(UserEntity userLogado) {

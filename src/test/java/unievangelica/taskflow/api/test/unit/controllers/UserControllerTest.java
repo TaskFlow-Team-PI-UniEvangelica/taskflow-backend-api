@@ -21,7 +21,6 @@ import unievangelica.taskflow.api.controllers.UserController;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.service.UserService;
 
-import java.util.List;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -86,16 +85,12 @@ public class UserControllerTest {
     }
 
     @Test
-    @DisplayName("Deve listar todos os usuários (GET /user)")
-    void testListarTodos() throws Exception {
-        unievangelica.taskflow.api.dto.response.UserResponseDTO responseDTO = new unievangelica.taskflow.api.dto.response.UserResponseDTO(1L, "User Test", "test@test.com", "MEMBER");
-        when(userService.listarUsuarios()).thenReturn(List.of(responseDTO));
-
+    @DisplayName("GET /user não deve existir: não há listagem global de usuários e e-mails")
+    void listagemGlobalDeUsuariosNaoExiste() throws Exception {
         mockMvc.perform(get("/user"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].nome").value("User Test"));
+                .andExpect(status().isNotFound());
 
-        verify(userService, times(1)).listarUsuarios();
+        verifyNoInteractions(userService);
     }
 
     @Test
@@ -104,7 +99,7 @@ public class UserControllerTest {
         mockMvc.perform(post("/user")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"nome\":\"Fantasma\",\"email\":\"vitima@exemplo.com\"}"))
-                .andExpect(status().isMethodNotAllowed());
+                .andExpect(status().isNotFound());
 
         verifyNoInteractions(userService);
     }
