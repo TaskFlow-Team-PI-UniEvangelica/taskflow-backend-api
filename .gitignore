@@ -39,5 +39,6 @@ build/
 
 ### Logs ###
 *.log
-spring-error.log
+# spring-error.log e os arquivos rotacionados pelo logback (.gz, .tmp)
+spring-error.log*
 
