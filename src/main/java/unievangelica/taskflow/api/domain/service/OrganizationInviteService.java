@@ -1,8 +1,10 @@
 package unievangelica.taskflow.api.domain.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import unievangelica.taskflow.api.domain.event.InviteCreatedEvent;
 import unievangelica.taskflow.api.domain.persistence.entities.*;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationInviteRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
@@ -27,7 +29,7 @@ public class OrganizationInviteService {
     private final UserRepository userRepository;
     private final OrganizationMemberRepository memberRepository;
     private final OrganizationService organizationService;
-    private final EmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
 
     private UserEntity getAuthenticatedUser() {
         Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -79,8 +81,8 @@ public class OrganizationInviteService {
 
         inviteRepository.save(invite);
 
-        // Enviar email
-        emailService.sendInviteEmail(invitedEmail, inviter.getNome(), organization.getNome());
+        // O e-mail é enviado pelo InviteEmailListener após o commit, de forma assíncrona
+        eventPublisher.publishEvent(new InviteCreatedEvent(invitedEmail, inviter.getNome(), organization.getNome()));
     }
 
     public List<InviteResponseDTO> getMyInvites() {

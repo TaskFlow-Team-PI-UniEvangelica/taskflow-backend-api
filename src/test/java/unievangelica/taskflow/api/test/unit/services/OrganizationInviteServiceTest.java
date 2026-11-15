@@ -5,19 +5,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import unievangelica.taskflow.api.domain.event.InviteCreatedEvent;
 import unievangelica.taskflow.api.domain.persistence.entities.*;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationInviteRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
-import unievangelica.taskflow.api.domain.service.EmailService;
 import unievangelica.taskflow.api.domain.service.OrganizationInviteService;
 import unievangelica.taskflow.api.domain.service.OrganizationService;
 import unievangelica.taskflow.api.dto.request.OrganizationInviteRequestDTO;
@@ -49,7 +51,7 @@ public class OrganizationInviteServiceTest {
     private OrganizationService organizationService;
 
     @Mock
-    private EmailService emailService;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private OrganizationInviteService inviteService;
@@ -98,11 +100,11 @@ public class OrganizationInviteServiceTest {
 
         assertThrows(SecurityException.class, () -> inviteService.createInvite(10L, request));
         verify(inviteRepository, never()).save(any());
-        verify(emailService, never()).sendInviteEmail(anyString(), anyString(), anyString());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
-    @DisplayName("Deve criar convite e disparar e-mail quando solicitante possui permissão e hierarquia")
+    @DisplayName("Deve criar convite e publicar evento para envio do e-mail após o commit")
     void testCreateInviteComSucesso() {
         when(organizationRepository.findById(10L)).thenReturn(Optional.of(organization));
         when(organizationService.hasPermissionTo(userLogado, 10L, "MANAGE_MEMBERS")).thenReturn(true);
@@ -117,7 +119,57 @@ public class OrganizationInviteServiceTest {
         inviteService.createInvite(10L, request);
 
         verify(inviteRepository, times(1)).save(any(OrganizationInviteEntity.class));
-        verify(emailService, times(1)).sendInviteEmail("novo@taskflow.com", "Owner User", "TaskFlow Org");
+        ArgumentCaptor<InviteCreatedEvent> evento = ArgumentCaptor.forClass(InviteCreatedEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(evento.capture());
+        assertEquals(new InviteCreatedEvent("novo@taskflow.com", "Owner User", "TaskFlow Org"), evento.getValue());
+    }
+
+    @Test
+    @DisplayName("Não deve gravar convite nem publicar evento de e-mail para quem já é membro")
+    void testCreateInviteParaMembroExistenteNaoPublicaEvento() {
+        UserEntity existente = new UserEntity();
+        existente.setId(2L);
+        existente.setEmail("membro@taskflow.com");
+        OrganizationMemberEntity membro = new OrganizationMemberEntity();
+        membro.setOrganization(organization);
+        membro.setUser(existente);
+        membro.setRole(OrganizationRole.MEMBER);
+        organization.setMembers(List.of(membro));
+
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(organization));
+        when(organizationService.hasPermissionTo(userLogado, 10L, "MANAGE_MEMBERS")).thenReturn(true);
+
+        OrganizationInviteRequestDTO request = new OrganizationInviteRequestDTO();
+        request.setEmail("Membro@TaskFlow.com");
+        request.setRole("MEMBER");
+
+        assertThrows(IllegalArgumentException.class, () -> inviteService.createInvite(10L, request));
+        verify(inviteRepository, never()).save(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    @DisplayName("Não deve gravar convite nem publicar evento de e-mail se já houver convite pendente válido")
+    void testCreateInviteDuplicadoNaoPublicaEvento() {
+        OrganizationInviteEntity pendente = OrganizationInviteEntity.builder()
+                .id(50L)
+                .organization(organization)
+                .invitedEmail("novo@taskflow.com")
+                .status(InviteStatus.PENDING)
+                .expiresAt(LocalDateTime.now().plusDays(3))
+                .build();
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(organization));
+        when(organizationService.hasPermissionTo(userLogado, 10L, "MANAGE_MEMBERS")).thenReturn(true);
+        when(inviteRepository.findByOrganizationIdAndInvitedEmailIgnoreCaseAndStatus(10L, "novo@taskflow.com", InviteStatus.PENDING))
+                .thenReturn(Optional.of(pendente));
+
+        OrganizationInviteRequestDTO request = new OrganizationInviteRequestDTO();
+        request.setEmail("novo@taskflow.com");
+        request.setRole("MEMBER");
+
+        assertThrows(IllegalArgumentException.class, () -> inviteService.createInvite(10L, request));
+        verify(inviteRepository, never()).save(any());
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
