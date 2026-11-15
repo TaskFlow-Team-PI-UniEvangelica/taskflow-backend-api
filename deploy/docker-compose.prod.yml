@@ -74,8 +74,13 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_URL: jdbc:postgresql://db:5432/${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
+      # ALT-30: a API usa o papel restrito (DML) e o Flyway usa o dono do schema.
+      # Enquanto scripts/db-privilegio-minimo.sh não for aplicado e as variáveis não forem
+      # definidas no .env, ambos usam o DB_USER atual (a API registra um aviso no log).
+      DB_USER: ${DB_APP_USER:-${DB_USER}}
+      DB_PASSWORD: ${DB_APP_PASSWORD:-${DB_PASSWORD}}
+      DB_MIGRATION_USER: ${DB_OWNER_USER:-${DB_USER}}
+      DB_MIGRATION_PASSWORD: ${DB_OWNER_PASSWORD:-${DB_PASSWORD}}
       KEYCLOACK_URL_VITE: https://${KC_DOMAIN}/realms/taskflow-realm
       KEYCLOAK_JWKS_URI: http://keycloak:8080/realms/taskflow-realm/protocol/openid-connect/certs
       FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL}

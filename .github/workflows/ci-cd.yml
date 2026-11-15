@@ -100,5 +100,6 @@ jobs:
             cd /srv/taskflow
             cp .incoming/deploy/docker-compose.prod.yml docker-compose.yml
             cp .incoming/deploy/scripts/*.sh scripts/ && chmod 700 scripts/*.sh
+            cp .incoming/deploy/scripts/*.sql scripts/ && chmod 600 scripts/*.sql
             rm -rf .incoming
             ./scripts/deploy.sh backend ${{ github.sha }}
