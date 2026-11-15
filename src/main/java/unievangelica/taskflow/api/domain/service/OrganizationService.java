@@ -71,18 +71,9 @@ public class OrganizationService {
         if (user == null || task == null || task.getOrganization() == null) {
             return null;
         }
-        Long orgId = task.getOrganization().getId();
-        OrganizationMemberEntity member = organizationMemberRepository
-                .findByOrganizationIdAndUserId(orgId, user.getId())
+        return organizationMemberRepository
+                .findByOrganizationIdAndUserId(task.getOrganization().getId(), user.getId())
                 .orElse(null);
-
-        if (member == null && task.getOrganization().getMembers() != null) {
-            member = task.getOrganization().getMembers().stream()
-                    .filter(m -> m.getUser() != null && Objects.equals(m.getUser().getId(), user.getId()))
-                    .findFirst()
-                    .orElse(null);
-        }
-        return member;
     }
 
     private boolean isCreatorOrAssignee(UserEntity user, TaskEntity task) {
@@ -366,7 +357,8 @@ public class OrganizationService {
     }
 
     public List<OrganizationResponseDTO> listarOrganizacoesDoUsuario(UserEntity userLogado) {
-        List<OrganizationMemberEntity> memberships = organizationMemberRepository.findByUserId(userLogado.getId());
+        // A organização vem na mesma consulta (sem uma consulta extra por organização)
+        List<OrganizationMemberEntity> memberships = organizationMemberRepository.findByUserIdComOrganizacao(userLogado.getId());
         
         return memberships.stream()
                 .map(m -> converterParaDTO(m.getOrganization(), m.getRole()))
@@ -374,24 +366,17 @@ public class OrganizationService {
     }
 
     public java.util.List<unievangelica.taskflow.api.dto.response.MemberResponseDTO> listarMembros(Long organizationId, UserEntity userLogado) {
-        OrganizationEntity org = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
-        
+        if (!organizationRepository.existsById(organizationId)) {
+            throw new ResourceNotFoundException("Organização não encontrada");
+        }
+
         // Verificar se o usuario atual eh membro da organizacao
-        boolean isMember = org.getMembers().stream()
-                .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
-        if (!isMember) {
+        if (!organizationMemberRepository.existsByOrganizationIdAndUserId(organizationId, userLogado.getId())) {
             throw new SecurityException("Você não tem acesso a esta organização.");
         }
 
-        return org.getMembers().stream()
-                .map(m -> new unievangelica.taskflow.api.dto.response.MemberResponseDTO(
-                        m.getUser().getId(),
-                        m.getUser().getNome(),
-                        m.getUser().getEmail(),
-                        m.getRole().name()
-                ))
-                .collect(java.util.stream.Collectors.toList());
+        // Uma consulta com os dados dos membros (sem carregar cada usuário nem o avatar)
+        return organizationMemberRepository.listarMembros(organizationId);
     }
 
     @Transactional

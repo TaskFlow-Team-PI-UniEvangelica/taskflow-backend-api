@@ -5,11 +5,11 @@ import org.springframework.transaction.annotation.Transactional;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
 import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
-import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
 import unievangelica.taskflow.api.domain.persistence.entities.TaskEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.TaskHistoryEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.TaskHistoryRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.TaskRepository;
@@ -34,17 +34,40 @@ public class TaskService {
     private final OrganizationService organizationService;
     private final OrganizationRepository organizationRepository;
     private final TaskHistoryRepository taskHistoryRepository;
+    private final OrganizationMemberRepository memberRepository;
 
     public TaskService(TaskRepository taskRepository, 
                        UserRepository userRepository,
                        OrganizationService organizationService,
                        OrganizationRepository organizationRepository,
-                       TaskHistoryRepository taskHistoryRepository) {
+                       TaskHistoryRepository taskHistoryRepository,
+                       OrganizationMemberRepository memberRepository) {
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
         this.organizationService = organizationService;
         this.organizationRepository = organizationRepository;
         this.taskHistoryRepository = taskHistoryRepository;
+        this.memberRepository = memberRepository;
+    }
+
+    // Checagens de pertencimento por consulta direta: não carregam a lista de membros da organização.
+
+    private void exigirMembro(Long organizationId, UserEntity user, String mensagem) {
+        if (!memberRepository.existsByOrganizationIdAndUserId(organizationId, user.getId())) {
+            throw new SecurityException(mensagem);
+        }
+    }
+
+    private OrganizationRole exigirPapel(Long organizationId, UserEntity user, String mensagem) {
+        return memberRepository.findRole(organizationId, user.getId())
+                .orElseThrow(() -> new SecurityException(mensagem));
+    }
+
+    private void exigirResponsaveisMembros(Long organizationId, Set<Long> idsResponsaveis) {
+        if (!idsResponsaveis.isEmpty()
+                && memberRepository.countMembros(organizationId, idsResponsaveis) != idsResponsaveis.size()) {
+            throw new SecurityException("Um ou mais usuários não pertencem à organização.");
+        }
     }
 
     public List<TaskResponseDTO> listarTasks(Long organizationId, UserEntity userLogado){
@@ -54,13 +77,10 @@ public class TaskService {
         }
 
         if (organizationId != null) {
-            OrganizationEntity organization = organizationRepository.findById(organizationId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada."));
-            boolean isMember = organization.getMembers().stream()
-                    .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
-            if (!isMember) {
-                throw new SecurityException("Você não pertence a esta organização.");
+            if (!organizationRepository.existsById(organizationId)) {
+                throw new ResourceNotFoundException("Organização não encontrada.");
             }
+            exigirMembro(organizationId, userLogado, "Você não pertence a esta organização.");
             List<TaskEntity> tasksDB = taskRepository.listTasksByOrganization(organizationId);
             return tasksDB.stream()
                     .map(this::converterParaDTO)
@@ -109,13 +129,8 @@ public class TaskService {
                 throw new BusinessException("Um ou mais usuários informados como responsáveis não existem.");
             }
             
-            boolean allAreMembers = responsaveis.stream().allMatch(u -> 
-                organization.getMembers().stream().anyMatch(m -> m.getUser().getId().equals(u.getId()))
-            );
-            if (!allAreMembers) {
-                throw new SecurityException("Um ou mais usuários não pertencem à organização.");
-            }
-            
+            exigirResponsaveisMembros(orgId, uniqueIds);
+
             novaTarefa.setResponsaveis(responsaveis);
         }
 
@@ -133,15 +148,10 @@ public class TaskService {
         return converterParaDTO(taskLocal);
     }
 
-    private boolean isAboveMemberInTaskOrg(UserEntity user, TaskEntity task) {
-        if (user == null || task == null || task.getOrganization() == null || task.getOrganization().getMembers() == null) {
-            return false;
-        }
-        return task.getOrganization().getMembers().stream()
-                .filter(m -> m.getUser() != null && Objects.equals(m.getUser().getId(), user.getId()))
-                .anyMatch(m -> m.getRole() == OrganizationRole.OWNER
-                        || m.getRole() == OrganizationRole.SUB_OWNER
-                        || m.getRole() == OrganizationRole.MANAGER);
+    private static boolean isAboveMember(OrganizationRole papel) {
+        return papel == OrganizationRole.OWNER
+                || papel == OrganizationRole.SUB_OWNER
+                || papel == OrganizationRole.MANAGER;
     }
 
     @Transactional
@@ -151,11 +161,8 @@ public class TaskService {
         
         Long orgId = taskLocal.getOrganization().getId();
 
-        boolean isMember = taskLocal.getOrganization().getMembers().stream()
-                .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
-        if (!isMember) {
-            throw new SecurityException("Você não pertence à organização desta tarefa.");
-        }
+        // Uma consulta: confirma o vínculo e traz o papel usado nas checagens abaixo
+        OrganizationRole papel = exigirPapel(orgId, userLogado, "Você não pertence à organização desta tarefa.");
 
         // Capturar estado anterior para diff de auditoria
         String oldTitle = taskLocal.getTitulo();
@@ -190,7 +197,7 @@ public class TaskService {
 
         // Validar permissão de edição de conteúdo (ou submissão sem alteração de status)
         if (contentChanged || !statusChanged) {
-            boolean canEdit = isAboveMemberInTaskOrg(userLogado, taskLocal)
+            boolean canEdit = isAboveMember(papel)
                     || organizationService.canEditTask(userLogado, taskLocal);
             if (!canEdit) {
                 throw new SecurityException("Você não tem permissão para alterar esta tarefa.");
@@ -217,7 +224,7 @@ public class TaskService {
         if (data.status() != null && !data.status().trim().isEmpty()) {
             TaskEntity.Status novoStatus = RequestValueParser.status(data.status());
             if (oldStatus != novoStatus) {
-                boolean canMove = isAboveMemberInTaskOrg(userLogado, taskLocal)
+                boolean canMove = isAboveMember(papel)
                         || organizationService.canMoveTask(userLogado, taskLocal);
                 if (!canMove) {
                     throw new SecurityException("Você não tem permissão para mover o status desta tarefa.");
@@ -244,12 +251,7 @@ public class TaskService {
                 throw new BusinessException("Um ou mais usuários informados como responsáveis não existem.");
             }
             
-            boolean allAreMembers = novosResponsaveis.stream().allMatch(u -> 
-                taskLocal.getOrganization().getMembers().stream().anyMatch(m -> m.getUser().getId().equals(u.getId()))
-            );
-            if (!allAreMembers) {
-                throw new SecurityException("Um ou mais usuários não pertencem à organização.");
-            }
+            exigirResponsaveisMembros(orgId, uniqueIds);
 
             Set<Long> oldIds = oldResponsaveis.stream()
                     .map(UserEntity::getId)
@@ -310,18 +312,15 @@ public class TaskService {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
             .orElseThrow(() -> new ResourceNotFoundException("Tarefa não encontrada"));
 
-        boolean isMember = taskLocal.getOrganization().getMembers().stream()
-                .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
-        if (!isMember) {
-            throw new SecurityException("Você não pertence à organização desta tarefa.");
-        }
+        OrganizationRole papel = exigirPapel(taskLocal.getOrganization().getId(), userLogado,
+                "Você não pertence à organização desta tarefa.");
 
         TaskEntity.Status statusEnum = RequestValueParser.status(novoStatus);
         if (taskLocal.getStatus() == statusEnum) {
             return;
         }
 
-        boolean canMove = isAboveMemberInTaskOrg(userLogado, taskLocal)
+        boolean canMove = isAboveMember(papel)
                 || organizationService.canMoveTask(userLogado, taskLocal);
         if (!canMove) {
             throw new SecurityException("Você não tem permissão para mover o status desta tarefa.");
@@ -426,11 +425,7 @@ public class TaskService {
         TaskEntity taskLocal = taskRepository.findTaskById(taskId)
             .orElseThrow(() -> new ResourceNotFoundException("Tarefa não encontrada"));
 
-        boolean isMember = taskLocal.getOrganization().getMembers().stream()
-                .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
-        if (!isMember) {
-            throw new SecurityException("Você não tem acesso a esta organização.");
-        }
+        exigirMembro(taskLocal.getOrganization().getId(), userLogado, "Você não tem acesso a esta organização.");
 
         return taskHistoryRepository.findByTaskIdOrderByTimestampDesc(taskId).stream()
             .map(this::converterHistoricoParaDTO)
@@ -448,13 +443,10 @@ public class TaskService {
         OrganizationEntity organization = organizationRepository.findById(organizationId)
             .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
 
-        OrganizationMemberEntity membership = organization.getMembers().stream()
-                .filter(m -> m.getUser().getId().equals(userLogado.getId()))
-                .findFirst()
-                .orElseThrow(() -> new SecurityException("Você não tem acesso a esta organização."));
+        OrganizationRole papel = exigirPapel(organizationId, userLogado, "Você não tem acesso a esta organização.");
 
         List<TaskHistoryEntity> historico;
-        if (membership.getRole() == OrganizationRole.MEMBER) {
+        if (papel == OrganizationRole.MEMBER) {
             historico = taskHistoryRepository.findExistingTasksByOrganizationIdOrderByTimestampDesc(organizationId);
         } else {
             Integer retentionDays = organization.getDeletedTasksRetentionDays();
@@ -480,12 +472,9 @@ public class TaskService {
         OrganizationEntity organization = organizationRepository.findById(organizationId)
             .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
 
-        OrganizationMemberEntity membership = organization.getMembers().stream()
-                .filter(m -> m.getUser().getId().equals(userLogado.getId()))
-                .findFirst()
-                .orElseThrow(() -> new SecurityException("Você não pertence a esta organização."));
+        OrganizationRole papel = exigirPapel(organizationId, userLogado, "Você não pertence a esta organização.");
 
-        if (membership.getRole() == OrganizationRole.MEMBER) {
+        if (papel == OrganizationRole.MEMBER) {
             throw new SecurityException("Apenas cargos acima de Membro (Gerente, Sub-Dono e Dono) podem visualizar o histórico de tarefas excluídas.");
         }
 

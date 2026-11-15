@@ -1,5 +1,6 @@
 package unievangelica.taskflow.api.test.unit.services;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,12 +9,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
 import unievangelica.taskflow.api.domain.persistence.entities.TaskEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.TaskHistoryEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.TaskHistoryRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.TaskRepository;
@@ -26,7 +29,10 @@ import unievangelica.taskflow.api.dto.response.TaskResponseDTO;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -51,8 +57,46 @@ public class TaskServiceTest {
     @Mock
     private TaskHistoryRepository taskHistoryRepository;
 
+    @Mock
+    private OrganizationMemberRepository memberRepository;
+
     @InjectMocks
     private TaskService taskService;
+
+    /**
+     * "Banco" de vínculos simulado: o TaskService checa pertencimento pelo repositório (exists, findRole,
+     * countMembros). As respostas vêm das organizações registradas pelos próprios testes.
+     */
+    private final Map<Long, OrganizationEntity> organizacoes = new HashMap<>();
+
+    private OrganizationEntity registrar(OrganizationEntity org) {
+        organizacoes.put(org.getId(), org);
+        return org;
+    }
+
+    private Optional<OrganizationMemberEntity> vinculo(Long orgId, Long userId) {
+        OrganizationEntity org = organizacoes.get(orgId);
+        if (org == null || org.getMembers() == null) {
+            return Optional.empty();
+        }
+        return org.getMembers().stream()
+                .filter(m -> m.getUser() != null && userId.equals(m.getUser().getId()))
+                .findFirst();
+    }
+
+    @BeforeEach
+    void simularVinculos() {
+        lenient().when(memberRepository.existsByOrganizationIdAndUserId(anyLong(), anyLong()))
+                .thenAnswer(inv -> vinculo(inv.getArgument(0), inv.getArgument(1)).isPresent());
+        lenient().when(memberRepository.findRole(anyLong(), anyLong()))
+                .thenAnswer(inv -> vinculo(inv.getArgument(0), inv.getArgument(1)).map(OrganizationMemberEntity::getRole));
+        lenient().when(memberRepository.countMembros(anyLong(), anyCollection()))
+                .thenAnswer(inv -> {
+                    Long orgId = inv.getArgument(0);
+                    Collection<Long> ids = inv.getArgument(1);
+                    return ids.stream().filter(id -> vinculo(orgId, id).isPresent()).count();
+                });
+    }
 
     private OrganizationEntity buildOrgWithMember(Long orgId, UserEntity memberUser, OrganizationRole role) {
         OrganizationEntity org = new OrganizationEntity();
@@ -62,7 +106,7 @@ public class TaskServiceTest {
         membership.setUser(memberUser);
         membership.setRole(role);
         org.setMembers(List.of(membership));
-        return org;
+        return registrar(org);
     }
 
     @Test
@@ -127,12 +171,64 @@ public class TaskServiceTest {
 
         UserEntity membroReal = new UserEntity();
         membroReal.setId(1L);
-        OrganizationEntity org = buildOrgWithMember(100L, membroReal, OrganizationRole.OWNER);
+        buildOrgWithMember(100L, membroReal, OrganizationRole.OWNER);
 
-        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+        when(organizationRepository.existsById(100L)).thenReturn(true);
 
         assertThrows(SecurityException.class, () -> taskService.listarTasks(100L, intruso));
         verify(taskRepository, never()).listTasksByOrganization(anyLong());
+    }
+
+    @Test
+    @DisplayName("Listagem de tarefas de organização inexistente responde 'não encontrada' antes da checagem de vínculo")
+    void testaListarTasksDeOrganizacaoInexistente() {
+        when(organizationRepository.existsById(404L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> taskService.listarTasks(404L, usuario(1L)));
+        verify(memberRepository, never()).existsByOrganizationIdAndUserId(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("Pertencimento é checado por consulta direta, sem carregar a lista de membros da organização")
+    void testaChecagemDePertencimentoSemListaDeMembros() {
+        UserEntity membro = usuario(2L);
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(10L);
+        org.setMembers(null); // a lista de membros não é usada
+
+        TaskEntity task = new TaskEntity();
+        task.setId(61L);
+        task.setStatus(TaskEntity.Status.pendente);
+        task.setOrganization(org);
+
+        when(taskRepository.findTaskById(61L)).thenReturn(Optional.of(task));
+        when(memberRepository.findRole(10L, 2L)).thenReturn(Optional.of(OrganizationRole.MANAGER));
+
+        taskService.atualizarStatusTask(61L, "em_andamento", membro);
+
+        verify(taskRepository).updateTaskStatus(61L, TaskEntity.Status.em_andamento);
+        // Vínculo e papel vêm de uma única consulta
+        verify(memberRepository, times(1)).findRole(10L, 2L);
+        verify(memberRepository, never()).existsByOrganizationIdAndUserId(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("Criação com responsável que existe mas não é membro da organização é recusada (contagem em uma consulta)")
+    void testarCriarTaskComResponsavelDeOutraOrganizacao() {
+        UserEntity criador = usuario(1L);
+        UserEntity deFora = usuario(50L);
+        OrganizationEntity org = buildOrgWithMember(100L, criador, OrganizationRole.OWNER);
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
+        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+        when(userRepository.userFindAllByIds(List.of(1L, 50L))).thenReturn(List.of(criador, deFora));
+
+        TaskRequestDTO dto = new TaskRequestDTO("Titulo", null, null, null, null, List.of(1L, 50L), 100L);
+
+        SecurityException ex = assertThrows(SecurityException.class, () -> taskService.criarTask(dto, criador));
+        assertThat(ex.getMessage()).isEqualTo("Um ou mais usuários não pertencem à organização.");
+        verify(memberRepository).countMembros(eq(100L), argThat(ids -> ids.containsAll(List.of(1L, 50L)) && ids.size() == 2));
+        verify(taskRepository, never()).save(any());
     }
 
     @Test
@@ -353,6 +449,7 @@ public class TaskServiceTest {
         m2.setRole(OrganizationRole.MEMBER);
 
         org.setMembers(List.of(m1, m2));
+        registrar(org);
 
         TaskHistoryEntity deletedItem = TaskHistoryEntity.builder()
                 .id(501L)
@@ -416,7 +513,7 @@ public class TaskServiceTest {
         membro.setUser(user);
         membro.setRole(role);
         org.setMembers(List.of(membro));
-        return org;
+        return registrar(org);
     }
 
     private UserEntity usuario(Long id) {

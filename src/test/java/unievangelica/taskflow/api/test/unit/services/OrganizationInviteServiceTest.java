@@ -160,6 +160,7 @@ public class OrganizationInviteServiceTest {
 
         when(organizationRepository.findById(10L)).thenReturn(Optional.of(organization));
         when(organizationService.hasPermissionTo(userLogado, 10L, "MANAGE_MEMBERS")).thenReturn(true);
+        when(memberRepository.existsByOrganizationIdAndUserEmailIgnoreCase(10L, "membro@taskflow.com")).thenReturn(true);
 
         OrganizationInviteRequestDTO request = new OrganizationInviteRequestDTO();
         request.setEmail("Membro@TaskFlow.com");

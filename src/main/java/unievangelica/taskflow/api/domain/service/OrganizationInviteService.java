@@ -86,8 +86,7 @@ public class OrganizationInviteService {
             throw new BusinessException("O e-mail do convidado é obrigatório.");
         }
 
-        boolean alreadyMember = organization.getMembers().stream()
-                .anyMatch(m -> m.getUser().getEmail() != null && m.getUser().getEmail().equalsIgnoreCase(invitedEmail));
+        boolean alreadyMember = memberRepository.existsByOrganizationIdAndUserEmailIgnoreCase(organizationId, invitedEmail);
         if (alreadyMember) {
             throw new BusinessException("Este usuário já é membro da organização.");
         }

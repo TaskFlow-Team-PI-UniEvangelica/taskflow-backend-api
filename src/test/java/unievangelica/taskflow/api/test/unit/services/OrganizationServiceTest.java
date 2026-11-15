@@ -8,6 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
@@ -18,8 +19,10 @@ import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationRe
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.domain.service.OrganizationService;
 import unievangelica.taskflow.api.dto.request.OrganizationRequestDTO;
+import unievangelica.taskflow.api.dto.response.MemberResponseDTO;
 import unievangelica.taskflow.api.dto.response.OrganizationResponseDTO;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -416,5 +419,58 @@ public class OrganizationServiceTest {
         assertThrows(SecurityException.class, () -> {
             organizationService.deletarOrganizacao(10L, member);
         });
+    }
+
+    // --- ALT-27: listagens e checagens sem carregar a lista de membros (sem N+1) ---
+
+    @Test
+    @DisplayName("listarMembros: membro recebe a lista da consulta única do repositório, sem usar getMembers()")
+    void testListarMembrosPorConsultaUnica() {
+        organization.setMembers(null); // a coleção não é usada
+        List<MemberResponseDTO> esperado = List.of(
+                new MemberResponseDTO(1L, "Owner User", "owner@x.com", "OWNER"),
+                new MemberResponseDTO(2L, "Normal Member", "member@x.com", "MEMBER"));
+        when(organizationRepository.existsById(10L)).thenReturn(true);
+        when(organizationMemberRepository.existsByOrganizationIdAndUserId(10L, 2L)).thenReturn(true);
+        when(organizationMemberRepository.listarMembros(10L)).thenReturn(esperado);
+
+        assertEquals(esperado, organizationService.listarMembros(10L, member));
+    }
+
+    @Test
+    @DisplayName("listarMembros: quem não é membro recebe 403 e a lista não é consultada")
+    void testListarMembrosNaoMembro() {
+        when(organizationRepository.existsById(10L)).thenReturn(true);
+        when(organizationMemberRepository.existsByOrganizationIdAndUserId(10L, 99L)).thenReturn(false);
+        UserEntity estranho = new UserEntity();
+        estranho.setId(99L);
+
+        assertThrows(SecurityException.class, () -> organizationService.listarMembros(10L, estranho));
+        verify(organizationMemberRepository, never()).listarMembros(anyLong());
+    }
+
+    @Test
+    @DisplayName("listarMembros: organização inexistente responde 'não encontrada'")
+    void testListarMembrosOrganizacaoInexistente() {
+        when(organizationRepository.existsById(404L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> organizationService.listarMembros(404L, member));
+        verifyNoInteractions(organizationMemberRepository);
+    }
+
+    @Test
+    @DisplayName("listarOrganizacoesDoUsuario usa a consulta com JOIN FETCH da organização")
+    void testListarOrganizacoesDoUsuarioComJoinFetch() {
+        OrganizationMemberEntity vinculo = new OrganizationMemberEntity();
+        vinculo.setOrganization(organization);
+        vinculo.setUser(member);
+        vinculo.setRole(OrganizationRole.MEMBER);
+        when(organizationMemberRepository.findByUserIdComOrganizacao(2L)).thenReturn(List.of(vinculo));
+
+        List<OrganizationResponseDTO> orgs = organizationService.listarOrganizacoesDoUsuario(member);
+
+        assertEquals(1, orgs.size());
+        assertEquals("My Org", orgs.get(0).nome());
+        verify(organizationMemberRepository, never()).findByUserId(anyLong());
     }
 }
