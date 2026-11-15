@@ -35,4 +35,18 @@ $KC update "clients/$CID" -r "$REALM" \
   -s "attributes.\"post.logout.redirect.uris\"=$FRONTEND_URL/*" \
   -s directAccessGrantsEnabled=false
 
+# A API exige "taskflow-api" no aud dos tokens (spring.security.oauth2.resourceserver.jwt.audiences).
+# Este passo precisa rodar ANTES do deploy da API que passa a exigir a audiência.
+echo "Garantindo o audience mapper (aud=taskflow-api) no Client taskflow-frontend..."
+if $KC get "clients/$CID/protocol-mappers/models" -r "$REALM" --fields name --format csv --noquotes \
+    | tr -d '\r' | grep -qx 'taskflow-api-audience'; then
+  echo "Audience mapper já existe."
+else
+  $KC create "clients/$CID/protocol-mappers/models" -r "$REALM" \
+    -s name=taskflow-api-audience -s protocol=openid-connect -s protocolMapper=oidc-audience-mapper \
+    -s 'config."included.custom.audience"=taskflow-api' \
+    -s 'config."access.token.claim"=true' -s 'config."id.token.claim"=false' \
+    -s 'config."introspection.token.claim"=true'
+fi
+
 echo "Configurações de produção do Keycloak aplicadas com sucesso para $FRONTEND_URL!"
