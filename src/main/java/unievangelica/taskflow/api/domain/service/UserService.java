@@ -70,6 +70,19 @@ public class UserService {
         return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
 
+    /**
+     * Retorna o usuário cujo avatar foi pedido, desde que o solicitante seja a própria pessoa ou
+     * tenha ao menos uma organização em comum com ela. Caso contrário responde como "não encontrado"
+     * (mesma resposta de um ID inexistente), para não revelar quais usuários existem.
+     */
+    public UserEntity buscarParaAvatar(Long id, String keycloakIdSolicitante) {
+        UserEntity solicitante = buscarPorKeycloakId(keycloakIdSolicitante);
+        if (!solicitante.getId().equals(id) && !memberRepository.compartilhamOrganizacao(solicitante.getId(), id)) {
+            throw new ResourceNotFoundException("Usuário não encontrado");
+        }
+        return buscarPorId(id);
+    }
+
 
     @Transactional
     public void updateAvatar(String keycloakId, MultipartFile file) {

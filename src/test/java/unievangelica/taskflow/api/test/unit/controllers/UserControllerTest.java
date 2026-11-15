@@ -23,6 +23,7 @@ import unievangelica.taskflow.api.domain.service.UserService;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -130,5 +131,19 @@ public class UserControllerTest {
         mockMvc.perform(get("/user/me")).andExpect(status().isOk());
 
         verify(userService).sincronizarPerfilKeycloak(mockUser, "User Test", "vitima@exemplo.com", false);
+    }
+
+    @Test
+    @DisplayName("GET /user/{id}/avatar repassa o solicitante (sub do token) para a checagem de acesso")
+    void avatarUsaOSolicitanteDoToken() throws Exception {
+        mockUser.setAvatar(new byte[]{1, 2, 3});
+        mockUser.setAvatarType("image/png");
+        when(userService.buscarParaAvatar(5L, "keycloak-id-123")).thenReturn(mockUser);
+
+        mockMvc.perform(get("/user/5/avatar"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/png"));
+
+        verify(userService, never()).buscarPorId(any());
     }
 }

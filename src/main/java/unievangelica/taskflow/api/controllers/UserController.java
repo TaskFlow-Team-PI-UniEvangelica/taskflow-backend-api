@@ -92,14 +92,17 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    @Operation(summary = "Obter Avatar de um usuário", description = "Retorna a imagem raw do avatar do usuário")
+    @Operation(summary = "Obter Avatar de um usuário",
+            description = "Retorna a imagem raw do avatar. Disponível apenas para o próprio usuário e para quem "
+                    + "tem ao menos uma organização em comum com ele.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Imagem retornada com sucesso", content = @Content(mediaType = "image/jpeg")),
-        @ApiResponse(responseCode = "404", description = "Avatar não encontrado")
+        @ApiResponse(responseCode = "404", description = "Avatar não encontrado, usuário inexistente ou sem organização em comum")
     })
     @GetMapping(value = "/{id}/avatar")
-    public ResponseEntity<byte[]> getAvatar(@Parameter(description = "ID do usuário") @PathVariable Long id) {
-        UserEntity user = userService.buscarPorId(id);
+    public ResponseEntity<byte[]> getAvatar(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+                                            @Parameter(description = "ID do usuário") @PathVariable Long id) {
+        UserEntity user = userService.buscarParaAvatar(id, jwt.getSubject());
         if (user.getAvatar() == null) {
             return ResponseEntity.notFound().build();
         }

@@ -150,4 +150,47 @@ public class UserServiceTest {
         assertThrows(ResourceNotFoundException.class, () -> userService.deletarUsuario(99L));
         verifyNoInteractions(memberRepository);
     }
+
+    // --- ALT-25: avatar visível só para a própria pessoa e colegas de organização ---
+
+    private UserEntity solicitante(Long id) {
+        UserEntity u = new UserEntity();
+        u.setId(id);
+        u.setKeycloakId("kc-solicitante");
+        when(userRepository.findByKeycloakId("kc-solicitante")).thenReturn(Optional.of(u));
+        return u;
+    }
+
+    @Test
+    @DisplayName("Avatar: a própria pessoa obtém o seu sem consultar organizações")
+    void testAvatarDoProprioUsuario() {
+        UserEntity eu = solicitante(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(eu));
+
+        assertSame(eu, userService.buscarParaAvatar(1L, "kc-solicitante"));
+        verifyNoInteractions(memberRepository);
+    }
+
+    @Test
+    @DisplayName("Avatar: colega com organização em comum obtém o avatar")
+    void testAvatarDeColegaDeOrganizacao() {
+        solicitante(2L);
+        when(memberRepository.compartilhamOrganizacao(2L, 1L)).thenReturn(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(userMock));
+
+        assertSame(userMock, userService.buscarParaAvatar(1L, "kc-solicitante"));
+    }
+
+    @Test
+    @DisplayName("Avatar: sem organização em comum responde 'não encontrado' sem carregar o usuário alvo")
+    void testAvatarSemOrganizacaoEmComum() {
+        solicitante(2L);
+        when(memberRepository.compartilhamOrganizacao(2L, 1L)).thenReturn(false);
+
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
+                () -> userService.buscarParaAvatar(1L, "kc-solicitante"));
+
+        assertEquals("Usuário não encontrado", ex.getMessage());
+        verify(userRepository, never()).findById(anyLong());
+    }
 }
