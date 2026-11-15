@@ -79,24 +79,22 @@ public class UserService {
         return userRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
     }
 
-    private static final java.util.Set<String> ALLOWED_AVATAR_TYPES = java.util.Set.of(
-            "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"
-    );
 
     @Transactional
     public void updateAvatar(String keycloakId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Arquivo de imagem vazio ou inválido.");
         }
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_AVATAR_TYPES.contains(contentType.toLowerCase())) {
-            throw new IllegalArgumentException("Formato de imagem não suportado. Use JPEG, PNG, WEBP ou GIF.");
-        }
+        byte[] content;
         try {
-            userRepository.updateAvatar(keycloakId, file.getBytes(), contentType.toLowerCase());
+            content = file.getBytes();
         } catch (IOException e) {
             throw new RuntimeException("Erro ao processar imagem", e);
         }
+        // O tipo é identificado pelo conteúdo (magic bytes), não pelo Content-Type enviado pelo cliente
+        String detectedType = ImageTypeDetector.detect(content)
+                .orElseThrow(() -> new IllegalArgumentException("Formato de imagem não suportado. Use JPEG, PNG, WEBP ou GIF."));
+        userRepository.updateAvatar(keycloakId, content, detectedType);
     }
 
     
