@@ -10,10 +10,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
 import unievangelica.taskflow.api.domain.event.InviteCreatedEvent;
 import unievangelica.taskflow.api.domain.persistence.entities.*;
@@ -24,13 +23,16 @@ import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository
 import unievangelica.taskflow.api.domain.service.OrganizationInviteService;
 import unievangelica.taskflow.api.domain.service.OrganizationService;
 import unievangelica.taskflow.api.dto.request.OrganizationInviteRequestDTO;
+import unievangelica.taskflow.api.dto.response.InviteResponseDTO;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,13 +75,7 @@ public class OrganizationInviteServiceTest {
         organization.setNome("TaskFlow Org");
         organization.setMembers(List.of());
 
-        Jwt jwt = mock(Jwt.class);
-        lenient().when(jwt.getSubject()).thenReturn("kc-1");
-        Authentication auth = mock(Authentication.class);
-        lenient().when(auth.getPrincipal()).thenReturn(jwt);
-        SecurityContext securityContext = mock(SecurityContext.class);
-        lenient().when(securityContext.getAuthentication()).thenReturn(auth);
-        SecurityContextHolder.setContext(securityContext);
+        autenticarComToken("owner@taskflow.com", true);
 
         lenient().when(userRepository.findByKeycloakId("kc-1")).thenReturn(Optional.of(userLogado));
     }
@@ -87,6 +83,31 @@ public class OrganizationInviteServiceTest {
     @AfterEach
     void tearDown() {
         SecurityContextHolder.clearContext();
+    }
+
+    /** Autentica o "kc-1" com um token real cujas claims email/email_verified são as informadas. */
+    private static void autenticarComToken(String email, Boolean emailVerificado) {
+        Jwt.Builder builder = Jwt.withTokenValue("t")
+                .header("alg", "RS256")
+                .subject("kc-1")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(300));
+        if (email != null) builder.claim("email", email);
+        if (emailVerificado != null) builder.claim("email_verified", emailVerificado);
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(builder.build()));
+    }
+
+    private OrganizationInviteEntity convitePendentePara(String email) {
+        return OrganizationInviteEntity.builder()
+                .id(200L)
+                .organization(organization)
+                .inviter(userLogado)
+                .invitedEmail(email)
+                .role("SUB_OWNER")
+                .status(InviteStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .expiresAt(LocalDateTime.now().plusDays(7))
+                .build();
     }
 
     @Test
@@ -192,5 +213,103 @@ public class OrganizationInviteServiceTest {
         assertThrows(BusinessException.class, () -> inviteService.acceptInvite(100L));
         assertEquals(InviteStatus.EXPIRED, invite.getStatus());
         verify(memberRepository, never()).save(any());
+    }
+
+    // --- ALT-23: convites autorizados pelo e-mail verificado do token, não pelo users.email ---
+
+    @Test
+    @DisplayName("Listagem de convites usa o e-mail do token, não o e-mail gravado no banco local")
+    void listagemUsaEmailDoToken() {
+        userLogado.setEmail("alterado-pela-api@taskflow.com");
+        autenticarComToken("Owner@TaskFlow.com ", true);
+        when(inviteRepository.findByInvitedEmailIgnoreCaseAndStatus("Owner@TaskFlow.com", InviteStatus.PENDING))
+                .thenReturn(List.of(convitePendentePara("owner@taskflow.com")));
+
+        List<InviteResponseDTO> convites = inviteService.getMyInvites();
+
+        assertEquals(1, convites.size());
+        verify(inviteRepository, never()).findByInvitedEmailIgnoreCaseAndStatus(eq("alterado-pela-api@taskflow.com"), any());
+    }
+
+    @Test
+    @DisplayName("Sem e-mail verificado (ou sem a claim) a listagem de convites vem vazia")
+    void listagemVaziaSemEmailVerificado() {
+        autenticarComToken("owner@taskflow.com", false);
+        assertTrue(inviteService.getMyInvites().isEmpty());
+
+        autenticarComToken("owner@taskflow.com", null);
+        assertTrue(inviteService.getMyInvites().isEmpty());
+
+        autenticarComToken(null, true);
+        assertTrue(inviteService.getMyInvites().isEmpty());
+
+        verifyNoInteractions(inviteRepository);
+    }
+
+    @Test
+    @DisplayName("Ataque: users.email trocado para o do convidado não permite aceitar o convite (403, nada gravado)")
+    void aceiteRecusadoQuandoSoOBancoLocalTemOEmail() {
+        OrganizationInviteEntity convite = convitePendentePara("vitima@taskflow.com");
+        userLogado.setEmail("vitima@taskflow.com"); // e-mail local adulterado
+        autenticarComToken("owner@taskflow.com", true); // e-mail real do token
+        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+
+        SecurityException ex = assertThrows(SecurityException.class, () -> inviteService.acceptInvite(200L));
+
+        assertEquals("Este convite não pertence ao seu usuário.", ex.getMessage());
+        assertEquals(InviteStatus.PENDING, convite.getStatus());
+        verify(inviteRepository, never()).save(any());
+        verify(memberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("E-mail do convite no token, mas não verificado: aceite recusado com 403")
+    void aceiteRecusadoComEmailNaoVerificado() {
+        OrganizationInviteEntity convite = convitePendentePara("owner@taskflow.com");
+        autenticarComToken("owner@taskflow.com", false);
+        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+
+        assertThrows(SecurityException.class, () -> inviteService.acceptInvite(200L));
+        assertEquals(InviteStatus.PENDING, convite.getStatus());
+        verify(memberRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Destinatário com e-mail verificado aceita o convite e entra com o papel do convite")
+    void aceiteDoDestinatarioVerificado() {
+        OrganizationInviteEntity convite = convitePendentePara("OWNER@taskflow.com");
+        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+        when(memberRepository.findByOrganizationIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
+
+        inviteService.acceptInvite(200L);
+
+        assertEquals(InviteStatus.ACCEPTED, convite.getStatus());
+        ArgumentCaptor<OrganizationMemberEntity> membro = ArgumentCaptor.forClass(OrganizationMemberEntity.class);
+        verify(memberRepository).save(membro.capture());
+        assertEquals(userLogado, membro.getValue().getUser());
+        assertEquals(OrganizationRole.SUB_OWNER, membro.getValue().getRole());
+    }
+
+    @Test
+    @DisplayName("Recusa de convite de outra pessoa responde 403 e não altera o convite")
+    void recusaDeConviteDeOutro() {
+        OrganizationInviteEntity convite = convitePendentePara("vitima@taskflow.com");
+        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+
+        assertThrows(SecurityException.class, () -> inviteService.declineInvite(200L));
+        assertEquals(InviteStatus.PENDING, convite.getStatus());
+        verify(inviteRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Destinatário com e-mail verificado recusa o convite")
+    void recusaDoDestinatario() {
+        OrganizationInviteEntity convite = convitePendentePara("owner@taskflow.com");
+        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+
+        inviteService.declineInvite(200L);
+
+        assertEquals(InviteStatus.DECLINED, convite.getStatus());
+        verify(inviteRepository).save(convite);
     }
 }

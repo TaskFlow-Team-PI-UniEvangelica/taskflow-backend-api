@@ -34,13 +34,12 @@ public class UserService {
         UserEntity userLocal = userRepository.userFindById(id)
                 .orElseThrow(()-> new ResourceNotFoundException("Usuário não encontrado"));
 
+        // Só o nome é editável; o e-mail é mantido (vem do Keycloak e autoriza convites)
         String novoNome = data.nome() != null ? data.nome() : userLocal.getNome();
-        String novoEmail = data.email() != null ? data.email() : userLocal.getEmail();
 
-        userRepository.updateUser(id, novoNome, novoEmail);
+        userRepository.updateUser(id, novoNome, userLocal.getEmail());
 
         userLocal.setNome(novoNome);
-        userLocal.setEmail(novoEmail);
 
         return converterParaDTO(userLocal);
     }
@@ -85,11 +84,19 @@ public class UserService {
     
     @Transactional
     public void sincronizarNome(UserEntity user, String novoNome) {
-        sincronizarPerfilKeycloak(user, novoNome, null);
+        sincronizarPerfilKeycloak(user, novoNome, null, false);
     }
 
+    /**
+     * Espelha nome e e-mail do token no banco local. O e-mail só é copiado quando o Keycloak o
+     * marca como verificado: um e-mail trocado e ainda não confirmado não pode virar o e-mail local,
+     * porque é ele que autoriza convites.
+     */
     @Transactional
-    public void sincronizarPerfilKeycloak(UserEntity user, String novoNome, String novoEmail) {
+    public void sincronizarPerfilKeycloak(UserEntity user, String novoNome, String novoEmail, boolean emailVerificado) {
+        if (!emailVerificado) {
+            novoEmail = null;
+        }
         boolean alterado = false;
         String nomeFinal = user.getNome();
         String emailFinal = user.getEmail();

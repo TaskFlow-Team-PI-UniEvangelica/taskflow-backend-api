@@ -37,10 +37,12 @@ public class UserController {
     public ResponseEntity<UserResponseDTO> perfilDeUsuario(@Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
         UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
         
-        // Sincronizacao Just-In-Time (Espelha o nome e e-mail do Keycloak para o Banco de Dados)
+        // Sincronização Just-In-Time: espelha o nome e o e-mail do Keycloak no banco
+        // (o e-mail só quando verificado)
         String nomeNoToken = jwt.getClaimAsString("name");
         String emailNoToken = jwt.getClaimAsString("email");
-        userService.sincronizarPerfilKeycloak(userLogado, nomeNoToken, emailNoToken);
+        boolean emailVerificado = Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified"));
+        userService.sincronizarPerfilKeycloak(userLogado, nomeNoToken, emailNoToken, emailVerificado);
 
         UserResponseDTO profile = userService.obterPerfilUsuario(userLogado);
         return ResponseEntity.ok(profile);

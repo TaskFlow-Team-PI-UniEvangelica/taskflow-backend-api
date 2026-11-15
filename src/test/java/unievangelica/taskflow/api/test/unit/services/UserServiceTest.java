@@ -11,10 +11,14 @@ import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.domain.service.UserService;
+import unievangelica.taskflow.api.dto.request.UserRequestDTO;
+import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -67,10 +71,45 @@ public class UserServiceTest {
         userMock.setNome("Nome Antigo");
         userMock.setEmail("antigo@test.com");
 
-        userService.sincronizarPerfilKeycloak(userMock, "Novo Nome", "novo@test.com");
+        userService.sincronizarPerfilKeycloak(userMock, "Novo Nome", "novo@test.com", true);
 
         assertEquals("Novo Nome", userMock.getNome());
         assertEquals("novo@test.com", userMock.getEmail());
         verify(userRepository, times(1)).updateUser(1L, "Novo Nome", "novo@test.com");
+    }
+
+    @Test
+    @DisplayName("E-mail não verificado no Keycloak não é copiado para o banco (o nome continua sincronizado)")
+    void testSincronizacaoIgnoraEmailNaoVerificado() {
+        userMock.setNome("Nome Antigo");
+        userMock.setEmail("antigo@test.com");
+
+        userService.sincronizarPerfilKeycloak(userMock, "Novo Nome", "vitima@test.com", false);
+
+        assertEquals("antigo@test.com", userMock.getEmail());
+        verify(userRepository, times(1)).updateUser(1L, "Novo Nome", "antigo@test.com");
+    }
+
+    @Test
+    @DisplayName("Sem mudança de nome e com e-mail não verificado, nada é gravado")
+    void testSincronizacaoSemAlteracaoNaoGrava() {
+        userMock.setEmail("antigo@test.com");
+
+        userService.sincronizarPerfilKeycloak(userMock, "User Test", "vitima@test.com", false);
+
+        verify(userRepository, never()).updateUser(anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("PUT de perfil altera só o nome e preserva o e-mail")
+    void testAtualizarUsuarioPreservaEmail() {
+        userMock.setEmail("atual@test.com");
+        when(userRepository.userFindById(1L)).thenReturn(Optional.of(userMock));
+
+        UserResponseDTO resposta = userService.atualizarUsuario(1L, new UserRequestDTO("Nome Novo", null, null));
+
+        verify(userRepository).updateUser(1L, "Nome Novo", "atual@test.com");
+        assertEquals("atual@test.com", resposta.email());
+        assertEquals("Nome Novo", resposta.nome());
     }
 }

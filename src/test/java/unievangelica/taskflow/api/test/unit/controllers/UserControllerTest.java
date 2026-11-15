@@ -20,12 +20,14 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 import unievangelica.taskflow.api.controllers.UserController;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.service.UserService;
+import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -102,5 +104,31 @@ public class UserControllerTest {
                 .andExpect(status().isNotFound());
 
         verifyNoInteractions(userService);
+    }
+
+    @Test
+    @DisplayName("PUT /user/{id} ignora o campo email do corpo: só o nome chega ao serviço")
+    void atualizacaoDePerfilIgnoraEmail() throws Exception {
+        when(userService.buscarPorKeycloakId("keycloak-id-123")).thenReturn(mockUser);
+
+        mockMvc.perform(put("/user/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Novo Nome\",\"email\":\"vitima@exemplo.com\"}"))
+                .andExpect(status().isOk());
+
+        verify(userService).atualizarUsuario(1L, new UserRequestDTO("Novo Nome", null, null));
+    }
+
+    @Test
+    @DisplayName("GET /user/me repassa email_verified=false: o e-mail não verificado não é sincronizado")
+    void perfilRepassaEmailNaoVerificado() throws Exception {
+        when(mockJwt.getClaimAsString("name")).thenReturn("User Test");
+        when(mockJwt.getClaimAsString("email")).thenReturn("vitima@exemplo.com");
+        when(mockJwt.getClaimAsBoolean("email_verified")).thenReturn(false);
+        when(userService.buscarPorKeycloakId("keycloak-id-123")).thenReturn(mockUser);
+
+        mockMvc.perform(get("/user/me")).andExpect(status().isOk());
+
+        verify(userService).sincronizarPerfilKeycloak(mockUser, "User Test", "vitima@exemplo.com", false);
     }
 }

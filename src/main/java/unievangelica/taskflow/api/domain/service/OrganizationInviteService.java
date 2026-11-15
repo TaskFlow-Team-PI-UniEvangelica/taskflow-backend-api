@@ -33,11 +33,37 @@ public class OrganizationInviteService {
     private final OrganizationService organizationService;
     private final ApplicationEventPublisher eventPublisher;
 
+    private static final String CONVITE_DE_OUTRO = "Este convite não pertence ao seu usuário.";
+
+    private static Jwt getJwt() {
+        return (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
+
     private UserEntity getAuthenticatedUser() {
-        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String keycloakId = jwt.getSubject();
-        return userRepository.findByKeycloakId(keycloakId)
+        return userRepository.findByKeycloakId(getJwt().getSubject())
                 .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+    }
+
+    /**
+     * E-mail que autoriza convites: a claim {@code email} do token, apenas se o Keycloak a marca como
+     * verificada. Não usa {@code users.email}, que reflete o banco local e não prova posse do e-mail.
+     */
+    private static Optional<String> emailVerificadoDoToken() {
+        Jwt jwt = getJwt();
+        String email = jwt.getClaimAsString("email");
+        if (!Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified")) || email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(email.trim());
+    }
+
+    private static void exigirDestinatario(OrganizationInviteEntity invite) {
+        boolean pertence = emailVerificadoDoToken()
+                .filter(email -> email.equalsIgnoreCase(invite.getInvitedEmail()))
+                .isPresent();
+        if (!pertence) {
+            throw new SecurityException(CONVITE_DE_OUTRO);
+        }
     }
 
     @Transactional
@@ -89,9 +115,12 @@ public class OrganizationInviteService {
     }
 
     public List<InviteResponseDTO> getMyInvites() {
-        UserEntity user = getAuthenticatedUser();
+        Optional<String> email = emailVerificadoDoToken();
+        if (email.isEmpty()) {
+            return List.of();
+        }
         LocalDateTime now = LocalDateTime.now();
-        return inviteRepository.findByInvitedEmailIgnoreCaseAndStatus(user.getEmail(), InviteStatus.PENDING).stream()
+        return inviteRepository.findByInvitedEmailIgnoreCaseAndStatus(email.get(), InviteStatus.PENDING).stream()
                 .filter(inv -> inv.getExpiresAt() == null || inv.getExpiresAt().isAfter(now))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -103,9 +132,7 @@ public class OrganizationInviteService {
         OrganizationInviteEntity invite = inviteRepository.findById(inviteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Convite não encontrado"));
 
-        if (!invite.getInvitedEmail().equalsIgnoreCase(user.getEmail())) {
-            throw new SecurityException("Este convite não pertence ao seu usuário.");
-        }
+        exigirDestinatario(invite);
         if (invite.getStatus() != InviteStatus.PENDING) {
             throw new BusinessException("Este convite já foi processado.");
         }
@@ -131,13 +158,10 @@ public class OrganizationInviteService {
 
     @Transactional
     public void declineInvite(Long inviteId) {
-        UserEntity user = getAuthenticatedUser();
         OrganizationInviteEntity invite = inviteRepository.findById(inviteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Convite não encontrado"));
 
-        if (!invite.getInvitedEmail().equalsIgnoreCase(user.getEmail())) {
-            throw new SecurityException("Este convite não pertence ao seu usuário.");
-        }
+        exigirDestinatario(invite);
         if (invite.getStatus() != InviteStatus.PENDING) {
             throw new BusinessException("Este convite já foi processado.");
         }
