@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -54,17 +53,6 @@ public class UserController {
 
         UserResponseDTO profile = userService.obterPerfilUsuario(userLogado);
         return ResponseEntity.ok(profile);
-    }
-
-    @Operation(summary = "Criar novo usuário manualmente", description = "Cria um usuário no banco da aplicação (idealmente o Keycloak gerencia isso)")
-    @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "Usuário criado com sucesso"),
-        @ApiResponse(responseCode = "400", description = "Dados inválidos")
-    })
-    @PostMapping
-    public ResponseEntity<UserResponseDTO> criarUsuario(@RequestBody UserRequestDTO data){
-        UserResponseDTO novoUsuario = userService.criarUsuario(data);
-        return ResponseEntity.status(HttpStatus.CREATED).body(novoUsuario);
     }
 
     @Operation(summary = "Atualizar usuário por ID")

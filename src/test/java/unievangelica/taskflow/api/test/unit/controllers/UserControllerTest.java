@@ -26,6 +26,7 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -95,5 +96,16 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$[0].nome").value("User Test"));
 
         verify(userService, times(1)).listarUsuarios();
+    }
+
+    @Test
+    @DisplayName("POST /user não deve existir: usuários são criados pelo provisionamento a partir do Keycloak")
+    void criacaoManualDeUsuarioNaoExiste() throws Exception {
+        mockMvc.perform(post("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Fantasma\",\"email\":\"vitima@exemplo.com\"}"))
+                .andExpect(status().isMethodNotAllowed());
+
+        verifyNoInteractions(userService);
     }
 }

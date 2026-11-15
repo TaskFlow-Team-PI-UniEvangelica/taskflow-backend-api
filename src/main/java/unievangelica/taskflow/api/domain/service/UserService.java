@@ -27,21 +27,6 @@ public class UserService {
         return userRepository.findByKeycloakId(keycloakId).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
 
-    @Transactional
-    public UserResponseDTO criarUsuario(UserRequestDTO data){
-        if (userRepository.userExistsByEmail(data.email())){
-            throw new BusinessException("Email já cadastrado, tente outro.");
-        }
-
-        UserEntity novoUsuario = new UserEntity();
-        novoUsuario.setNome(data.nome());
-        novoUsuario.setEmail(data.email());
-
-        UserEntity userLocal = userRepository.save(novoUsuario);
-
-        return converterParaDTO(userLocal);
-    }
-
     public List<UserResponseDTO> listarUsuarios() {
         return userRepository.userFindAll().stream()
                 .map(this::converterParaDTO)
