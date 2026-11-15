@@ -131,19 +131,16 @@ public class OrganizationControllerTest {
     }
 
     @Test
-    @DisplayName("Deve adicionar membro (POST /organization/{id}/members)")
-    void testAdicionarMembro() throws Exception {
-        MemberRequestDTO request = new MemberRequestDTO(2L, null, "MANAGER");
-
-        when(userService.buscarPorKeycloakId("keycloak-id-123")).thenReturn(mockUser);
-        doNothing().when(organizationService).adicionarMembro(eq(1L), eq(2L), eq("MANAGER"), eq(mockUser));
+    @DisplayName("POST /organization/{id}/members não deve existir: o ingresso é só por convite (RNE-005)")
+    void inclusaoDiretaDeMembroNaoExiste() throws Exception {
+        MemberRequestDTO request = new MemberRequestDTO(2L, "alvo@exemplo.com", "MEMBER");
 
         mockMvc.perform(post("/organization/1/members")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isMethodNotAllowed());
 
-        verify(organizationService, times(1)).adicionarMembro(eq(1L), eq(2L), eq("MANAGER"), eq(mockUser));
+        verifyNoInteractions(organizationService);
     }
 
     @Test

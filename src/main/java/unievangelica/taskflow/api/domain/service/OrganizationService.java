@@ -395,60 +395,6 @@ public class OrganizationService {
     }
 
     @Transactional
-    public void adicionarMembro(Long organizationId, Long userId, String roleStr, UserEntity userLogado) {
-        if (!hasPermissionTo(userLogado, organizationId, "MANAGE_MEMBERS")) {
-            throw new SecurityException("Você não tem permissão para gerenciar membros.");
-        }
-
-        OrganizationRole novoRole = RequestValueParser.papel(roleStr);
-        validarHierarquiaDeRoles(userLogado, organizationId, novoRole);
-
-        OrganizationEntity org = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
-        UserEntity novoUsuario = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
-
-        if (organizationMemberRepository.findByOrganizationIdAndUserId(org.getId(), novoUsuario.getId()).isPresent()) {
-            throw new BusinessException("Este usuário já é membro da organização.");
-        }
-
-        OrganizationMemberEntity member = new OrganizationMemberEntity();
-        member.setId(new OrganizationMemberId(org.getId(), novoUsuario.getId()));
-        member.setOrganization(org);
-        member.setUser(novoUsuario);
-        member.setRole(novoRole);
-
-        organizationMemberRepository.save(member);
-    }
-
-    @Transactional
-    public void adicionarMembroPorEmail(Long organizationId, String email, String roleStr, UserEntity userLogado) {
-        if (!hasPermissionTo(userLogado, organizationId, "MANAGE_MEMBERS")) {
-            throw new SecurityException("Você não tem permissão para gerenciar membros.");
-        }
-
-        OrganizationRole novoRole = RequestValueParser.papel(roleStr);
-        validarHierarquiaDeRoles(userLogado, organizationId, novoRole);
-
-        OrganizationEntity org = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
-        UserEntity novoUsuario = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com o email informado"));
-
-        if (organizationMemberRepository.findByOrganizationIdAndUserId(org.getId(), novoUsuario.getId()).isPresent()) {
-            throw new BusinessException("Este usuário já é membro da organização.");
-        }
-
-        OrganizationMemberEntity member = new OrganizationMemberEntity();
-        member.setId(new OrganizationMemberId(org.getId(), novoUsuario.getId()));
-        member.setOrganization(org);
-        member.setUser(novoUsuario);
-        member.setRole(novoRole);
-
-        organizationMemberRepository.save(member);
-    }
-
-    @Transactional
     public void atualizarPapelMembro(Long organizationId, Long userId, String roleStr, UserEntity userLogado) {
         if (!hasPermissionTo(userLogado, organizationId, "MANAGE_MEMBERS")) {
             throw new SecurityException("Você não tem permissão para gerenciar membros.");

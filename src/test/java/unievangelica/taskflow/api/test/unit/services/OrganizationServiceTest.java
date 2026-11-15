@@ -334,8 +334,8 @@ public class OrganizationServiceTest {
     }
 
     @Test
-    @DisplayName("Adicionar Membro: Falha de hierarquia se SUB_OWNER tentar adicionar OWNER")
-    void testAdicionarMembroFalhaHierarquia() {
+    @DisplayName("Hierarquia: SUB_OWNER não pode atribuir o papel SUB_OWNER (validação usada pelos convites)")
+    void testValidarHierarquiaSubOwnerNaoAtribuiSubOwner() {
         OrganizationMemberEntity subOwnerMembership = new OrganizationMemberEntity();
         subOwnerMembership.setUser(owner);
         subOwnerMembership.setOrganization(organization);
@@ -345,7 +345,7 @@ public class OrganizationServiceTest {
                 .thenReturn(Optional.of(subOwnerMembership));
 
         assertThrows(SecurityException.class, () -> {
-            organizationService.adicionarMembro(10L, 2L, "OWNER", owner);
+            organizationService.validarHierarquiaDeRoles(owner, 10L, OrganizationRole.SUB_OWNER);
         });
     }
 

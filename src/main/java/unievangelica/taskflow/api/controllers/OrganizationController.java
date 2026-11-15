@@ -91,25 +91,6 @@ public class OrganizationController {
         return ResponseEntity.ok(membros);
     }
 
-    @Operation(summary = "Adicionar membro", description = "Adiciona um usuário à organização. Requer privilégio OWNER, SUB_OWNER ou MANAGER.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Membro adicionado com sucesso"),
-            @ApiResponse(responseCode = "403", description = "Sem permissão para gerenciar membros ou atribuir o papel solicitado")
-    })
-    @PostMapping("/{id}/members")
-    public ResponseEntity<Void> adicionarMembro(
-            @Parameter(description = "ID da organização") @PathVariable Long id,
-            @RequestBody unievangelica.taskflow.api.dto.request.MemberRequestDTO data,
-            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {
-        UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
-        if (data.email() != null && !data.email().isBlank()) {
-            organizationService.adicionarMembroPorEmail(id, data.email(), data.role(), userLogado);
-        } else {
-            organizationService.adicionarMembro(id, data.userId(), data.role(), userLogado);
-        }
-        return ResponseEntity.noContent().build();
-    }
-
     @Operation(summary = "Atualizar papel do membro", description = "Altera o nível de acesso (Role) de um usuário na organização.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Papel atualizado com sucesso"),
