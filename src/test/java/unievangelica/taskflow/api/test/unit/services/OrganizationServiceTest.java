@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
@@ -86,7 +87,7 @@ public class OrganizationServiceTest {
                 "Org Inválida", true, true, false, false, true, 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -98,7 +99,7 @@ public class OrganizationServiceTest {
                 "Org Sem Criação", false, true, false, false, false, 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -149,7 +150,7 @@ public class OrganizationServiceTest {
                 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -171,7 +172,7 @@ public class OrganizationServiceTest {
                 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -193,7 +194,7 @@ public class OrganizationServiceTest {
                 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }

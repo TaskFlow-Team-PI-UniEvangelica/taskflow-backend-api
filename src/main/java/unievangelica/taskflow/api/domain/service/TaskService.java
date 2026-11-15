@@ -2,6 +2,8 @@ package unievangelica.taskflow.api.domain.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
@@ -53,7 +55,7 @@ public class TaskService {
 
         if (organizationId != null) {
             OrganizationEntity organization = organizationRepository.findById(organizationId)
-                    .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada."));
+                    .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada."));
             boolean isMember = organization.getMembers().stream()
                     .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
             if (!isMember) {
@@ -74,7 +76,7 @@ public class TaskService {
     public TaskResponseDTO criarTask(TaskRequestDTO data, UserEntity criadorLogado) {
         Long orgId = data.organizationId();
         if (orgId == null) {
-            throw new IllegalArgumentException("O ID da organização é obrigatório para criar uma task.");
+            throw new BusinessException("O ID da organização é obrigatório para criar uma task.");
         }
 
         if (!organizationService.hasPermissionTo(criadorLogado, orgId, "CREATE_TASK")) {
@@ -82,7 +84,7 @@ public class TaskService {
         }
 
         OrganizationEntity organization = organizationRepository.findById(orgId)
-            .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada."));
+            .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada."));
 
         TaskEntity novaTarefa = new TaskEntity();
         novaTarefa.setTitulo(data.titulo());
@@ -91,11 +93,11 @@ public class TaskService {
         novaTarefa.setOrganization(organization);
 
         if (data.prazo() != null && !data.prazo().trim().isEmpty()) {
-            novaTarefa.setPrazo(LocalDate.parse(data.prazo().trim()));
+            novaTarefa.setPrazo(RequestValueParser.prazo(data.prazo()));
         }
 
         novaTarefa.setPrioridade(data.prioridade() != null && !data.prioridade().trim().isEmpty() ?
-                TaskEntity.Prioridade.valueOf(data.prioridade().toLowerCase()) :
+                RequestValueParser.prioridade(data.prioridade()) :
                 TaskEntity.Prioridade.media);
 
         novaTarefa.setStatus(TaskEntity.Status.pendente);
@@ -104,7 +106,7 @@ public class TaskService {
             Set<Long> uniqueIds = new HashSet<>(data.idsResponsaveis());
             List<UserEntity> responsaveis = userRepository.userFindAllByIds(data.idsResponsaveis());
             if (responsaveis.size() != uniqueIds.size()) {
-                throw new IllegalArgumentException("Um ou mais usuários informados como responsáveis não existem.");
+                throw new BusinessException("Um ou mais usuários informados como responsáveis não existem.");
             }
             
             boolean allAreMembers = responsaveis.stream().allMatch(u -> 
@@ -145,7 +147,7 @@ public class TaskService {
     @Transactional
     public TaskResponseDTO atualizarTask(Long id, TaskRequestDTO data, UserEntity userLogado) {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada com ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Tarefa não encontrada com ID: " + id));
         
         Long orgId = taskLocal.getOrganization().getId();
 
@@ -173,7 +175,7 @@ public class TaskService {
                 && !Objects.equals(oldDescription != null ? oldDescription : "", data.descricao());
         boolean priorityChanged = data.prioridade() != null
                 && !data.prioridade().trim().isEmpty()
-                && oldPriority != TaskEntity.Prioridade.valueOf(data.prioridade().toLowerCase());
+                && oldPriority != RequestValueParser.prioridade(data.prioridade());
         boolean assigneesChanged = false;
         if (data.idsResponsaveis() != null) {
             Set<Long> incomingIds = new HashSet<>(data.idsResponsaveis());
@@ -182,7 +184,7 @@ public class TaskService {
         }
         boolean statusChanged = data.status() != null
                 && !data.status().trim().isEmpty()
-                && oldStatus != TaskEntity.Status.valueOf(data.status().toLowerCase());
+                && oldStatus != RequestValueParser.status(data.status());
 
         boolean contentChanged = deadlineChanged || titleChanged || descriptionChanged || priorityChanged || assigneesChanged;
 
@@ -200,7 +202,7 @@ public class TaskService {
             if (!organizationService.hasPermissionTo(userLogado, orgId, "CHANGE_DEADLINE")) {
                 throw new SecurityException("Você não tem permissão para alterar o prazo de tasks.");
             }
-            LocalDate novoPrazo = incomingPrazoStr.isEmpty() ? null : LocalDate.parse(incomingPrazoStr);
+            LocalDate novoPrazo = incomingPrazoStr.isEmpty() ? null : RequestValueParser.prazo(incomingPrazoStr);
             taskLocal.setPrazo(novoPrazo);
             salvarHistorico(
                 taskLocal,
@@ -213,7 +215,7 @@ public class TaskService {
 
         // 2. Status (com validação de permissão de movimentação e RETURN_TASK)
         if (data.status() != null && !data.status().trim().isEmpty()) {
-            TaskEntity.Status novoStatus = TaskEntity.Status.valueOf(data.status().toLowerCase());
+            TaskEntity.Status novoStatus = RequestValueParser.status(data.status());
             if (oldStatus != novoStatus) {
                 boolean canMove = isAboveMemberInTaskOrg(userLogado, taskLocal)
                         || organizationService.canMoveTask(userLogado, taskLocal);
@@ -239,7 +241,7 @@ public class TaskService {
                     ? List.of()
                     : userRepository.userFindAllByIds(data.idsResponsaveis());
             if (novosResponsaveis.size() != uniqueIds.size()) {
-                throw new IllegalArgumentException("Um ou mais usuários informados como responsáveis não existem.");
+                throw new BusinessException("Um ou mais usuários informados como responsáveis não existem.");
             }
             
             boolean allAreMembers = novosResponsaveis.stream().allMatch(u -> 
@@ -287,7 +289,7 @@ public class TaskService {
 
         // 6. Prioridade
         if (data.prioridade() != null && !data.prioridade().trim().isEmpty()) {
-            TaskEntity.Prioridade novaPrioridade = TaskEntity.Prioridade.valueOf(data.prioridade().toLowerCase());
+            TaskEntity.Prioridade novaPrioridade = RequestValueParser.prioridade(data.prioridade());
             if (oldPriority != novaPrioridade) {
                 taskLocal.setPrioridade(novaPrioridade);
                 salvarHistorico(
@@ -306,7 +308,7 @@ public class TaskService {
     @Transactional
     public void atualizarStatusTask(Long id, String novoStatus, UserEntity userLogado) {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada"));
+            .orElseThrow(() -> new ResourceNotFoundException("Tarefa não encontrada"));
 
         boolean isMember = taskLocal.getOrganization().getMembers().stream()
                 .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
@@ -314,7 +316,7 @@ public class TaskService {
             throw new SecurityException("Você não pertence à organização desta tarefa.");
         }
 
-        TaskEntity.Status statusEnum = TaskEntity.Status.valueOf(novoStatus.toLowerCase());
+        TaskEntity.Status statusEnum = RequestValueParser.status(novoStatus);
         if (taskLocal.getStatus() == statusEnum) {
             return;
         }
@@ -341,7 +343,7 @@ public class TaskService {
     @Transactional
     public void deletarTask(Long id, UserEntity userLogado) {
         TaskEntity taskLocal = taskRepository.findTaskById(id)
-            .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada"));
+            .orElseThrow(() -> new ResourceNotFoundException("Tarefa não encontrada"));
 
         Long orgId = taskLocal.getOrganization().getId();
         boolean allowed = organizationService.canDeleteTask(userLogado, taskLocal)
@@ -422,7 +424,7 @@ public class TaskService {
 
     public List<TaskHistoryResponseDTO> getTaskHistory(Long taskId, UserEntity userLogado) {
         TaskEntity taskLocal = taskRepository.findTaskById(taskId)
-            .orElseThrow(() -> new IllegalArgumentException("Tarefa não encontrada"));
+            .orElseThrow(() -> new ResourceNotFoundException("Tarefa não encontrada"));
 
         boolean isMember = taskLocal.getOrganization().getMembers().stream()
                 .anyMatch(m -> m.getUser().getId().equals(userLogado.getId()));
@@ -444,7 +446,7 @@ public class TaskService {
      */
     public List<TaskHistoryResponseDTO> getOrganizationHistory(Long organizationId, UserEntity userLogado) {
         OrganizationEntity organization = organizationRepository.findById(organizationId)
-            .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
+            .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
 
         OrganizationMemberEntity membership = organization.getMembers().stream()
                 .filter(m -> m.getUser().getId().equals(userLogado.getId()))
@@ -476,7 +478,7 @@ public class TaskService {
     @Transactional(readOnly = true)
     public List<TaskHistoryResponseDTO> getDeletedTasksHistory(Long organizationId, UserEntity userLogado) {
         OrganizationEntity organization = organizationRepository.findById(organizationId)
-            .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
+            .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
 
         OrganizationMemberEntity membership = organization.getMembers().stream()
                 .filter(m -> m.getUser().getId().equals(userLogado.getId()))

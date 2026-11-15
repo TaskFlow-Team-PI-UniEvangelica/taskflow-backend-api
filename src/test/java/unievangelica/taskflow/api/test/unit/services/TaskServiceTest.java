@@ -7,6 +7,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
@@ -395,7 +396,7 @@ public class TaskServiceTest {
         when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
         when(userRepository.userFindAllByIds(List.of(77L))).thenReturn(List.of());
 
-        assertThrows(IllegalArgumentException.class, () -> taskService.criarTask(comResponsavelInexistente, criador));
+        assertThrows(BusinessException.class, () -> taskService.criarTask(comResponsavelInexistente, criador));
 
         when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(false);
         assertThrows(SecurityException.class, () -> taskService.criarTask(comResponsavelInexistente, criador));

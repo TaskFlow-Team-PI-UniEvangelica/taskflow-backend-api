@@ -17,7 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Resposta 401 da API: JSON serializado (sem concatenação de strings), no mesmo formato do
+ * Resposta 401 da API: JSON serializado (sem concatenação de strings), no mesmo formato ProblemDetail do
  * GlobalExceptionHandler, com mensagem fixa. O motivo técnico da recusa do token fica apenas no log (DEBUG),
  * para não expor detalhes da validação ao cliente. Inclui o cabeçalho WWW-Authenticate (RFC 6750).
  */
@@ -34,15 +34,19 @@ public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
         log.debug("Requisição não autenticada em {} {}: {}", request.getMethod(), request.getRequestURI(),
                 authException != null ? authException.getMessage() : "sem detalhes");
 
+        // Mesmo formato do GlobalExceptionHandler: ProblemDetail (RFC 9457) + message, error e timestamp
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("title", HttpStatus.UNAUTHORIZED.getReasonPhrase());
         body.put("status", HttpStatus.UNAUTHORIZED.value());
-        body.put("error", HttpStatus.UNAUTHORIZED.getReasonPhrase());
+        body.put("detail", MENSAGEM);
+        body.put("instance", request.getRequestURI());
         body.put("message", MENSAGEM);
+        body.put("error", HttpStatus.UNAUTHORIZED.getReasonPhrase());
+        body.put("timestamp", LocalDateTime.now().toString());
 
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write(JSON.writeValueAsString(body));
     }

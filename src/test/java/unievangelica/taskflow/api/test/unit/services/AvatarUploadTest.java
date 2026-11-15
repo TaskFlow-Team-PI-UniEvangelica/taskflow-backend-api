@@ -7,6 +7,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.domain.service.ImageTypeDetector;
 import unievangelica.taskflow.api.domain.service.UserService;
@@ -57,7 +58,7 @@ public class AvatarUploadTest {
     void recusaHtmlDisfarcadoDeImagem() {
         MockMultipartFile arquivo = new MockMultipartFile("file", "avatar.png", "image/png", HTML);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        BusinessException ex = assertThrows(BusinessException.class,
                 () -> userService.updateAvatar("kc-1", arquivo));
 
         assertTrue(ex.getMessage().contains("Formato de imagem não suportado"));
@@ -82,7 +83,7 @@ public class AvatarUploadTest {
     void recusaArquivoVazio() {
         MockMultipartFile vazio = new MockMultipartFile("file", "avatar.png", "image/png", new byte[0]);
 
-        assertThrows(IllegalArgumentException.class, () -> userService.updateAvatar("kc-1", vazio));
+        assertThrows(BusinessException.class, () -> userService.updateAvatar("kc-1", vazio));
         verifyNoInteractions(userRepository);
     }
 }

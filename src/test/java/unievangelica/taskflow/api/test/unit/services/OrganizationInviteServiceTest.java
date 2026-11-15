@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
 import unievangelica.taskflow.api.domain.event.InviteCreatedEvent;
 import unievangelica.taskflow.api.domain.persistence.entities.*;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationInviteRepository;
@@ -143,7 +144,7 @@ public class OrganizationInviteServiceTest {
         request.setEmail("Membro@TaskFlow.com");
         request.setRole("MEMBER");
 
-        assertThrows(IllegalArgumentException.class, () -> inviteService.createInvite(10L, request));
+        assertThrows(BusinessException.class, () -> inviteService.createInvite(10L, request));
         verify(inviteRepository, never()).save(any());
         verifyNoInteractions(eventPublisher);
     }
@@ -167,7 +168,7 @@ public class OrganizationInviteServiceTest {
         request.setEmail("novo@taskflow.com");
         request.setRole("MEMBER");
 
-        assertThrows(IllegalArgumentException.class, () -> inviteService.createInvite(10L, request));
+        assertThrows(BusinessException.class, () -> inviteService.createInvite(10L, request));
         verify(inviteRepository, never()).save(any());
         verifyNoInteractions(eventPublisher);
     }
@@ -188,7 +189,7 @@ public class OrganizationInviteServiceTest {
 
         when(inviteRepository.findById(100L)).thenReturn(Optional.of(invite));
 
-        assertThrows(IllegalArgumentException.class, () -> inviteService.acceptInvite(100L));
+        assertThrows(BusinessException.class, () -> inviteService.acceptInvite(100L));
         assertEquals(InviteStatus.EXPIRED, invite.getStatus());
         verify(memberRepository, never()).save(any());
     }

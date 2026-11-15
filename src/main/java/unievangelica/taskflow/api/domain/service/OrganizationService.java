@@ -2,6 +2,8 @@ package unievangelica.taskflow.api.domain.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberId;
@@ -207,7 +209,7 @@ public class OrganizationService {
 
         // 1. Governança de Edição (Mutuamente Exclusiva: Editar Todas vs Editar Próprias/Responsável)
         if (Boolean.TRUE.equals(data.membersCanEditAllTasks()) && Boolean.TRUE.equals(data.membersCanEditOwnOrAssignedTasks())) {
-            throw new IllegalArgumentException(
+            throw new BusinessException(
                 "As opções de alterar todas as tarefas e alterar apenas tarefas próprias ou nas quais é responsável são mutuamente exclusivas."
             );
         }
@@ -232,7 +234,7 @@ public class OrganizationService {
 
         // 2. Governança de Movimentação (Mutuamente Exclusiva: Mover Todas vs Mover Próprias/Responsável)
         if (Boolean.TRUE.equals(data.membersCanMoveAllTasks()) && Boolean.TRUE.equals(data.membersCanMoveOwnOrAssignedTasks())) {
-            throw new IllegalArgumentException(
+            throw new BusinessException(
                 "As opções de mover todas as tarefas e mover apenas tarefas próprias ou nas quais é responsável são mutuamente exclusivas."
             );
         }
@@ -258,7 +260,7 @@ public class OrganizationService {
         // 3. Governança de Retorno de Tarefas Concluídas (Depende de ao menos uma opção de movimentação estar ligada)
         boolean anyMoveEnabled = nextMoveAll || nextMoveOwnOrAssigned;
         if (!anyMoveEnabled && Boolean.TRUE.equals(data.membersCanReturnTasks())) {
-            throw new IllegalArgumentException(
+            throw new BusinessException(
                 "Para permitir que membros retornem tarefas concluídas, ao menos uma opção de movimentação de tarefas deve estar ligada."
             );
         }
@@ -280,7 +282,7 @@ public class OrganizationService {
                 : org.isMembersCanDeleteOwnTasks();
 
         if (Boolean.TRUE.equals(data.membersCanDeleteTasks()) && Boolean.TRUE.equals(data.membersCanDeleteOwnTasks())) {
-            throw new IllegalArgumentException(
+            throw new BusinessException(
                 "As opções de excluir todas as tarefas e excluir apenas as próprias tarefas são mutuamente exclusivas."
             );
         }
@@ -290,7 +292,7 @@ public class OrganizationService {
             nextDeleteOwn = false;
         } else if (Boolean.TRUE.equals(data.membersCanDeleteOwnTasks())) {
             if (!org.isMembersCanCreateTasks()) {
-                throw new IllegalArgumentException(
+                throw new BusinessException(
                     "Para permitir que membros excluam suas próprias tarefas, a opção de criar tarefas deve estar obrigatoriamente ligada."
                 );
             }
@@ -338,7 +340,7 @@ public class OrganizationService {
         }
 
         OrganizationEntity org = organizationRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
 
         OrganizationMemberEntity member = organizationMemberRepository
                 .findByOrganizationIdAndUserId(id, userLogado.getId())
@@ -373,7 +375,7 @@ public class OrganizationService {
 
     public java.util.List<unievangelica.taskflow.api.dto.response.MemberResponseDTO> listarMembros(Long organizationId, UserEntity userLogado) {
         OrganizationEntity org = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
         
         // Verificar se o usuario atual eh membro da organizacao
         boolean isMember = org.getMembers().stream()
@@ -398,16 +400,16 @@ public class OrganizationService {
             throw new SecurityException("Você não tem permissão para gerenciar membros.");
         }
 
-        OrganizationRole novoRole = OrganizationRole.valueOf(roleStr.toUpperCase());
+        OrganizationRole novoRole = RequestValueParser.papel(roleStr);
         validarHierarquiaDeRoles(userLogado, organizationId, novoRole);
 
         OrganizationEntity org = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
         UserEntity novoUsuario = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
 
         if (organizationMemberRepository.findByOrganizationIdAndUserId(org.getId(), novoUsuario.getId()).isPresent()) {
-            throw new IllegalArgumentException("Este usuário já é membro da organização.");
+            throw new BusinessException("Este usuário já é membro da organização.");
         }
 
         OrganizationMemberEntity member = new OrganizationMemberEntity();
@@ -425,16 +427,16 @@ public class OrganizationService {
             throw new SecurityException("Você não tem permissão para gerenciar membros.");
         }
 
-        OrganizationRole novoRole = OrganizationRole.valueOf(roleStr.toUpperCase());
+        OrganizationRole novoRole = RequestValueParser.papel(roleStr);
         validarHierarquiaDeRoles(userLogado, organizationId, novoRole);
 
         OrganizationEntity org = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
         UserEntity novoUsuario = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado com o email informado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado com o email informado"));
 
         if (organizationMemberRepository.findByOrganizationIdAndUserId(org.getId(), novoUsuario.getId()).isPresent()) {
-            throw new IllegalArgumentException("Este usuário já é membro da organização.");
+            throw new BusinessException("Este usuário já é membro da organização.");
         }
 
         OrganizationMemberEntity member = new OrganizationMemberEntity();
@@ -452,11 +454,11 @@ public class OrganizationService {
             throw new SecurityException("Você não tem permissão para gerenciar membros.");
         }
 
-        OrganizationRole novoRole = OrganizationRole.valueOf(roleStr.toUpperCase());
+        OrganizationRole novoRole = RequestValueParser.papel(roleStr);
         validarHierarquiaDeRoles(userLogado, organizationId, novoRole);
 
         OrganizationMemberEntity member = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Membro não encontrado nesta organização"));
+                .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado nesta organização"));
 
         // Impedir que alguém altere o papel do próprio OWNER original ou rebaixe-o
         if (member.getRole() == OrganizationRole.OWNER) {
@@ -464,7 +466,7 @@ public class OrganizationService {
         }
 
         OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Você não é membro desta organização."));
+                .orElseThrow(() -> new BusinessException("Você não é membro desta organização."));
         if (requester.getRole() == OrganizationRole.SUB_OWNER && member.getRole() == OrganizationRole.SUB_OWNER) {
             throw new SecurityException("SUB_OWNER não pode alterar o papel de outro SUB_OWNER.");
         }
@@ -479,17 +481,17 @@ public class OrganizationService {
     @Transactional
     public void transferirPosse(Long organizationId, Long novoOwnerId, UserEntity userLogado) {
         OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Você não é membro desta organização."));
+                .orElseThrow(() -> new BusinessException("Você não é membro desta organização."));
 
         if (requester.getRole() != OrganizationRole.OWNER) {
             throw new SecurityException("Apenas o OWNER pode transferir a posse da organização.");
         }
 
         OrganizationMemberEntity novoOwner = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, novoOwnerId)
-                .orElseThrow(() -> new IllegalArgumentException("Membro destino não encontrado nesta organização."));
+                .orElseThrow(() -> new ResourceNotFoundException("Membro destino não encontrado nesta organização."));
 
         if (novoOwner.getUser().getId().equals(userLogado.getId())) {
-            throw new IllegalArgumentException("Você já é o OWNER desta organização.");
+            throw new BusinessException("Você já é o OWNER desta organização.");
         }
 
         if (novoOwner.getRole() != OrganizationRole.SUB_OWNER) {
@@ -513,7 +515,7 @@ public class OrganizationService {
         }
 
         OrganizationMemberEntity memberTarget = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userId)
-                .orElseThrow(() -> new IllegalArgumentException("Membro não encontrado nesta organização"));
+                .orElseThrow(() -> new ResourceNotFoundException("Membro não encontrado nesta organização"));
 
         if (memberTarget.getRole() == OrganizationRole.OWNER) {
             throw new SecurityException("Não é possível remover o OWNER da organização.");
@@ -521,7 +523,7 @@ public class OrganizationService {
 
         if (!isSelfRemoval) {
             OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Você não é membro desta organização."));
+                    .orElseThrow(() -> new BusinessException("Você não é membro desta organização."));
 
             if (requester.getRole() == OrganizationRole.SUB_OWNER && memberTarget.getRole() == OrganizationRole.SUB_OWNER) {
                 throw new SecurityException("SUB_OWNER não pode remover outro SUB_OWNER.");
@@ -559,14 +561,14 @@ public class OrganizationService {
     @Transactional
     public void deletarOrganizacao(Long organizationId, UserEntity userLogado) {
         OrganizationMemberEntity requester = organizationMemberRepository.findByOrganizationIdAndUserId(organizationId, userLogado.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Você não é membro desta organização."));
+                .orElseThrow(() -> new BusinessException("Você não é membro desta organização."));
 
         if (requester.getRole() != OrganizationRole.OWNER) {
             throw new SecurityException("Apenas o OWNER principal pode excluir a organização.");
         }
 
         OrganizationEntity org = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
 
         organizationRepository.delete(org);
     }

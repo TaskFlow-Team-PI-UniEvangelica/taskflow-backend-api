@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.domain.service.UserService;
@@ -54,7 +55,7 @@ public class UserServiceTest {
         when(userRepository.findByKeycloakId("new-id")).thenReturn(Optional.empty());
 
         // O provisionamento JIT é feito pelo UserProvisioningFilter; o UserService apenas busca.
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        ResourceNotFoundException ex = assertThrows(ResourceNotFoundException.class,
                 () -> userService.buscarPorKeycloakId("new-id"));
 
         assertEquals("Usuário não encontrado", ex.getMessage());
