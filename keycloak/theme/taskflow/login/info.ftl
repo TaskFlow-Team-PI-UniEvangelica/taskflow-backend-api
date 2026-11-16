@@ -9,10 +9,13 @@
     <meta name="view-transition" content="same-origin">
 </head>
 <body>
+    <#-- Só a página de "e-mail confirmado" usa o redirecionamento automático para o login do TaskFlow.
+         As demais páginas de aviso (ex.: e-mails de ação enviados pelo administrador, "conta atualizada")
+         seguem o destino indicado pelo Keycloak, como no tema base. -->
     <#assign isEmailVerified = false>
     <#if message?has_content && message.summary?has_content>
         <#assign summaryLower = message.summary?lower_case>
-        <#if summaryLower?contains("verificado") || summaryLower?contains("verified") || summaryLower?contains("email")>
+        <#if message.summary == msg("emailVerifiedMessage") || summaryLower?contains("verificado") || summaryLower?contains("verified")>
             <#assign isEmailVerified = true>
         </#if>
     </#if>
@@ -70,28 +73,25 @@
                             </div>
                         </div>
                     <#else>
-                        <!-- Mensagem informativa genérica -->
+                        <!-- Mensagem informativa genérica: o botão leva ao destino indicado pelo Keycloak (sem redirecionamento automático) -->
                         <div class="header">
                             <h2 class="title">Aviso do Sistema</h2>
                             <p id="kc-message" class="subtitle" style="margin-top: 20px; font-size: 1.1rem; color: var(--text-dark);">
-                                ${kcSanitize(message.summary)?no_esc}
+                                ${kcSanitize(message.summary)?no_esc}<#if requiredActions?has_content>: <b><#list requiredActions as reqActionItem>${kcSanitize(msg("requiredAction.${reqActionItem}"))?no_esc}<#sep>, </#list></b></#if>
                             </p>
                         </div>
 
+                        <#if !(skipLink??)>
                         <div class="actions" style="margin-top: 35px; display: flex; flex-direction: column; align-items: center; gap: 12px;">
-                            <a id="auto-redirect-btn" href="${candidateUrl}" class="btn-primary" style="text-decoration: none; padding: 12px 30px; display: inline-block;">
-                                Continuar
-                            </a>
-
-                            <div style="margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
-                                <span style="font-size: 0.85rem; color: #64748b;">
-                                    Redirecionando em <span id="countdown" style="font-weight: 700; color: #3b82f6;">5</span> segundos...
-                                </span>
-                                <button type="button" id="pause-btn" style="background: none; border: none; color: #64748b; font-size: 0.8rem; cursor: pointer; text-decoration: underline; padding: 4px;">
-                                    Pausar redirecionamento
-                                </button>
-                            </div>
+                            <#if pageRedirectUri?has_content>
+                                <a id="info-continue-btn" href="${pageRedirectUri}" class="btn-primary" style="text-decoration: none; padding: 12px 30px; display: inline-block;">Voltar para o TaskFlow</a>
+                            <#elseif actionUri?has_content>
+                                <a id="info-continue-btn" href="${actionUri}" class="btn-primary" style="text-decoration: none; padding: 12px 30px; display: inline-block;">Continuar</a>
+                            <#elseif (client.baseUrl)?has_content>
+                                <a id="info-continue-btn" href="${client.baseUrl}" class="btn-primary" style="text-decoration: none; padding: 12px 30px; display: inline-block;">Voltar para o TaskFlow</a>
+                            </#if>
                         </div>
+                        </#if>
                     </#if>
 
                 </div>
@@ -108,6 +108,7 @@
         </div>
     </div>
 
+    <#if isEmailVerified>
     <script>
         (function() {
             // 1. Limpeza estrita de sessão para garantir: "validar sem logar"
@@ -196,5 +197,6 @@
             }, 1000);
         })();
     </script>
+    </#if>
 </body>
 </html>
