@@ -1,0 +1,2 @@
+# Vulnerabilidades aceitas pelo Trivy no CI (uma por linha, ex.: CVE-2024-12345).
+# Toda exceção precisa de justificativa e data de revisão no comentário acima dela.

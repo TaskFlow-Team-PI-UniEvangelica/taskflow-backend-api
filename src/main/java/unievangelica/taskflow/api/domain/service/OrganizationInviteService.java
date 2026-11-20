@@ -1,8 +1,13 @@
 package unievangelica.taskflow.api.domain.service;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ConviteExpiradoException;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
+import unievangelica.taskflow.api.domain.event.InviteCreatedEvent;
 import unievangelica.taskflow.api.domain.persistence.entities.*;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationInviteRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
@@ -27,44 +32,75 @@ public class OrganizationInviteService {
     private final UserRepository userRepository;
     private final OrganizationMemberRepository memberRepository;
     private final OrganizationService organizationService;
-    private final EmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
+
+    private static final String CONVITE_DE_OUTRO = "Este convite não pertence ao seu usuário.";
+
+    private static Jwt getJwt() {
+        return (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+    }
 
     private UserEntity getAuthenticatedUser() {
-        Jwt jwt = (Jwt) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String keycloakId = jwt.getSubject();
-        return userRepository.findByKeycloakId(keycloakId)
-                .orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+        return userRepository.findByKeycloakId(getJwt().getSubject())
+                .orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
+    }
+
+    /**
+     * E-mail que autoriza convites: a claim {@code email} do token, apenas se o Keycloak a marca como
+     * verificada. Não usa {@code users.email}, que reflete o banco local e não prova posse do e-mail.
+     */
+    private static Optional<String> emailVerificadoDoToken() {
+        Jwt jwt = getJwt();
+        String email = jwt.getClaimAsString("email");
+        if (!Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified")) || email == null || email.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.of(email.trim());
+    }
+
+    private static void exigirDestinatario(OrganizationInviteEntity invite) {
+        boolean pertence = emailVerificadoDoToken()
+                .filter(email -> email.equalsIgnoreCase(invite.getInvitedEmail()))
+                .isPresent();
+        if (!pertence) {
+            throw new SecurityException(CONVITE_DE_OUTRO);
+        }
     }
 
     @Transactional
     public void createInvite(Long organizationId, OrganizationInviteRequestDTO request) {
         UserEntity inviter = getAuthenticatedUser();
         OrganizationEntity organization = organizationRepository.findById(organizationId)
-                .orElseThrow(() -> new IllegalArgumentException("Organização não encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada"));
 
         if (!organizationService.hasPermissionTo(inviter, organizationId, "MANAGE_MEMBERS")) {
             throw new SecurityException("Você não tem permissão para convidar membros para esta organização.");
         }
 
-        String roleStr = request.getRole() != null ? request.getRole().trim().toUpperCase() : "MEMBER";
-        OrganizationRole targetRole = OrganizationRole.valueOf(roleStr);
+        OrganizationRole targetRole = request.getRole() != null
+                ? RequestValueParser.papel(request.getRole())
+                : OrganizationRole.MEMBER;
         organizationService.validarHierarquiaDeRoles(inviter, organizationId, targetRole);
 
         String invitedEmail = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
         if (invitedEmail.isEmpty()) {
-            throw new IllegalArgumentException("O e-mail do convidado é obrigatório.");
+            throw new BusinessException("O e-mail do convidado é obrigatório.");
         }
 
-        boolean alreadyMember = organization.getMembers().stream()
-                .anyMatch(m -> m.getUser().getEmail() != null && m.getUser().getEmail().equalsIgnoreCase(invitedEmail));
+        boolean alreadyMember = memberRepository.existsByOrganizationIdAndUserEmailIgnoreCase(organizationId, invitedEmail);
         if (alreadyMember) {
-            throw new IllegalArgumentException("Este usuário já é membro da organização.");
+            throw new BusinessException("Este usuário já é membro da organização.");
         }
 
-        Optional<OrganizationInviteEntity> existingInvite = inviteRepository
+        LocalDateTime now = LocalDateTime.now();
+        List<OrganizationInviteEntity> pendingInvites = inviteRepository
                 .findByOrganizationIdAndInvitedEmailIgnoreCaseAndStatus(organizationId, invitedEmail, InviteStatus.PENDING);
-        if (existingInvite.isPresent() && existingInvite.get().getExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Já existe um convite pendente para este e-mail nesta organização.");
+        for (OrganizationInviteEntity existing : pendingInvites) {
+            if (existing.getExpiresAt() == null || existing.getExpiresAt().isAfter(now)) {
+                throw new BusinessException("Já existe um convite pendente para este e-mail nesta organização.");
+            }
+            existing.setStatus(InviteStatus.EXPIRED);
+            inviteRepository.save(existing);
         }
 
         OrganizationInviteEntity invite = OrganizationInviteEntity.builder()
@@ -73,41 +109,44 @@ public class OrganizationInviteService {
                 .invitedEmail(invitedEmail)
                 .role(targetRole.name())
                 .status(InviteStatus.PENDING)
-                .createdAt(LocalDateTime.now())
-                .expiresAt(LocalDateTime.now().plusDays(7))
+                .createdAt(now)
+                .expiresAt(now.plusDays(7))
                 .build();
 
         inviteRepository.save(invite);
 
-        // Enviar email
-        emailService.sendInviteEmail(invitedEmail, inviter.getNome(), organization.getNome());
+        // O e-mail é enviado pelo InviteEmailListener após o commit, de forma assíncrona
+        eventPublisher.publishEvent(new InviteCreatedEvent(invitedEmail, inviter.getNome(), organization.getNome()));
     }
 
+    @Transactional(readOnly = true)
     public List<InviteResponseDTO> getMyInvites() {
-        UserEntity user = getAuthenticatedUser();
+        Optional<String> email = emailVerificadoDoToken();
+        if (email.isEmpty()) {
+            return List.of();
+        }
         LocalDateTime now = LocalDateTime.now();
-        return inviteRepository.findByInvitedEmailIgnoreCaseAndStatus(user.getEmail(), InviteStatus.PENDING).stream()
+        return inviteRepository.findByInvitedEmailIgnoreCaseAndStatus(email.get(), InviteStatus.PENDING).stream()
                 .filter(inv -> inv.getExpiresAt() == null || inv.getExpiresAt().isAfter(now))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
-    @Transactional
+    // Convite vencido: grava o status EXPIRED mesmo respondendo erro (sem rollback dessa exceção)
+    @Transactional(noRollbackFor = ConviteExpiradoException.class)
     public void acceptInvite(Long inviteId) {
         UserEntity user = getAuthenticatedUser();
-        OrganizationInviteEntity invite = inviteRepository.findById(inviteId)
-                .orElseThrow(() -> new IllegalArgumentException("Convite não encontrado"));
+        OrganizationInviteEntity invite = inviteRepository.findByIdForUpdate(inviteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Convite não encontrado"));
 
-        if (!invite.getInvitedEmail().equalsIgnoreCase(user.getEmail())) {
-            throw new SecurityException("Este convite não pertence ao seu usuário.");
-        }
+        exigirDestinatario(invite);
         if (invite.getStatus() != InviteStatus.PENDING) {
-            throw new IllegalArgumentException("Este convite já foi processado.");
+            throw new BusinessException("Este convite já foi processado.");
         }
         if (invite.getExpiresAt() != null && invite.getExpiresAt().isBefore(LocalDateTime.now())) {
             invite.setStatus(InviteStatus.EXPIRED);
             inviteRepository.save(invite);
-            throw new IllegalArgumentException("Este convite expirou.");
+            throw new ConviteExpiradoException();
         }
 
         invite.setStatus(InviteStatus.ACCEPTED);
@@ -126,15 +165,12 @@ public class OrganizationInviteService {
 
     @Transactional
     public void declineInvite(Long inviteId) {
-        UserEntity user = getAuthenticatedUser();
-        OrganizationInviteEntity invite = inviteRepository.findById(inviteId)
-                .orElseThrow(() -> new IllegalArgumentException("Convite não encontrado"));
+        OrganizationInviteEntity invite = inviteRepository.findByIdForUpdate(inviteId)
+                .orElseThrow(() -> new ResourceNotFoundException("Convite não encontrado"));
 
-        if (!invite.getInvitedEmail().equalsIgnoreCase(user.getEmail())) {
-            throw new SecurityException("Este convite não pertence ao seu usuário.");
-        }
+        exigirDestinatario(invite);
         if (invite.getStatus() != InviteStatus.PENDING) {
-            throw new IllegalArgumentException("Este convite já foi processado.");
+            throw new BusinessException("Este convite já foi processado.");
         }
 
         invite.setStatus(InviteStatus.DECLINED);

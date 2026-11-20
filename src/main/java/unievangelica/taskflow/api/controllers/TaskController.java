@@ -125,7 +125,8 @@ public class TaskController {
     }
 
     @GetMapping("/organization/{organizationId}/history")
-    @Operation(summary = "Obter histórico da organização", description = "Obtém a linha do tempo completa de auditoria das tasks de uma organização (incluindo tarefas excluídas)")
+    @Operation(summary = "Obter histórico da organização", description = "Obtém a linha do tempo de auditoria das tasks de uma organização. Para MEMBER, retorna apenas eventos de tarefas existentes; " +
+            "cargos acima de MEMBER também recebem os eventos de tarefas excluídas, respeitando a retenção configurada (deletedTasksRetentionDays).")
     public ResponseEntity<List<TaskHistoryResponseDTO>> getOrganizationHistory(
             @PathVariable Long organizationId,
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt) {

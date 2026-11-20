@@ -32,7 +32,7 @@
                         }
                     }
                 } catch (e) {}
-                return "${(client.baseUrl)!(client.rootUrl)!''}" || window.location.origin;
+                return "${((client.baseUrl)!'')?js_string}" || window.location.origin;
             }
 
             function resolveDashboardUrl() {
@@ -140,8 +140,21 @@
                     var params = new URLSearchParams(window.location.search);
                     var redirectUri = params.get("redirect_uri");
                     if (redirectUri) {
-                        return new URL(redirectUri).origin;
+                        var parsed = new URL(redirectUri);
+                        if (parsed.origin && parsed.origin !== "null") {
+                            return parsed.origin;
+                        }
                     }
+                    if (document.referrer) {
+                        var refUrl = new URL(document.referrer);
+                        if (refUrl.origin && refUrl.origin !== "null" && refUrl.origin !== window.location.origin) {
+                            return refUrl.origin;
+                        }
+                    }
+                } catch (e) {}
+                return "${((client.baseUrl)!'')?js_string}" || window.location.origin;
+            }
+
             // Se veio do redirecionamento pós-confirmação ou pós-cadastro, exibe o aviso apropriado
             var searchParams = new URLSearchParams(window.location.search);
             if (searchParams.get("verified") === "1") {

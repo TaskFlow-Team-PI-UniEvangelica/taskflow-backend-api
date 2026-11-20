@@ -16,7 +16,7 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     @Query("SELECT u FROM User u WHERE u.keycloakId = :keycloakId")
     Optional<UserEntity> findByKeycloakId(@Param("keycloakId") String keycloakId);
 
-    @Query("SELECT u FROM User u WHERE u.email = :email")
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
     Optional<UserEntity> findByEmail(@Param("email") String email);
 
     
@@ -33,9 +33,6 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     @Query("SELECT COUNT(u) > 0 FROM User u WHERE u.id = :id")
     boolean userExistsById(@Param("id") Long id);
 
-    @Query("SELECT u FROM User u")
-    List<UserEntity> userFindAll();
-
     @Query("SELECT u FROM User u WHERE u.id IN :ids")
     List<UserEntity> userFindAllByIds(@Param("ids") List<Long> ids);
     
@@ -45,18 +42,9 @@ public interface UserRepository extends JpaRepository<UserEntity, Long> {
     @Query("UPDATE User u SET u.nome = :nome, u.email = :email WHERE u.id = :id")
     void updateUser(@Param("id") Long id, @Param("nome") String nome, @Param("email") String email);
 
-    
 
     @Modifying
     @Query("DELETE FROM User u WHERE u.id = :id")
     void deleteUserById(@Param("id") Long id);
-
-    @Modifying
-    @Query("UPDATE User u SET u.avatar = null, u.avatarType = null WHERE u.keycloakId = :keycloakId")
-    void removeAvatar(@Param("keycloakId") String keycloakId);
-
-    @Modifying
-    @Query("UPDATE User u SET u.avatar = :avatar, u.avatarType = :avatarType WHERE u.keycloakId = :keycloakId")
-    void updateAvatar(@Param("keycloakId") String keycloakId, @Param("avatar") byte[] avatar, @Param("avatarType") String avatarType);
 
 }

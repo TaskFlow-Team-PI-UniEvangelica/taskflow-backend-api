@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Atualizar Senha - TaskFlow</title>
+    <title>Definir Senha - TaskFlow</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="${url.resourcesPath}/css/taskflow-theme.css">
     <meta name="view-transition" content="same-origin">
@@ -16,8 +16,8 @@
             <div class="formSection">
                 <div class="formFade">
                     <div class="header">
-                        <h2 class="title">Atualizar Senha</h2>
-                        <p class="subtitle">Por favor, digite sua nova senha de acesso abaixo.</p>
+                        <h2 class="title">Definir Senha</h2>
+                        <p class="subtitle">Digite a senha que você usará para acessar o TaskFlow.</p>
                     </div>
 
                     <#if message?has_content>
@@ -40,7 +40,7 @@
 
                         <!-- Botoes -->
                         <div class="actions" style="margin-top: 25px;">
-                            <button tabindex="4" class="btn-primary" type="submit">Atualizar Senha</button>
+                            <button tabindex="4" class="btn-primary" type="submit">Salvar senha</button>
                         </div>
                         
                     </form>

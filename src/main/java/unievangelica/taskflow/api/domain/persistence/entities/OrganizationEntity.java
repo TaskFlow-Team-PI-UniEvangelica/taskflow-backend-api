@@ -56,7 +56,7 @@ public class OrganizationEntity {
     @Column(name = "deleted_tasks_retention_days")
     private Integer deletedTasksRetentionDays = 7;
 
-    @Column(name = "last_task_number", nullable = false)
+    @Column(name = "last_task_number", nullable = false, updatable = false)
     private int lastTaskNumber = 0;
 
     @OneToMany(mappedBy = "organization", cascade = CascadeType.ALL, orphanRemoval = true)

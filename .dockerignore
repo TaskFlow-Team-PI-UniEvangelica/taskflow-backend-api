@@ -1,0 +1,13 @@
+.git
+.github
+.gemini
+.claude
+.idea
+.vscode
+.env
+.env.*
+!.env.example
+target
+*.log
+spring-error.log
+HELP.md

@@ -2,48 +2,42 @@ package unievangelica.taskflow.api.domain.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ConflictException;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
+import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
+import unievangelica.taskflow.api.domain.persistence.repositories.UserAvatarRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
+import unievangelica.taskflow.api.domain.persistence.entities.UserAvatarEntity;
 import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 import unievangelica.taskflow.api.dto.response.UserResponseDTO;
 
-import java.util.List;
-import java.util.stream.Collectors;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Service
 public class UserService {
 
-    private final UserRepository userRepository;
+    static final String MENSAGEM_PROPRIETARIO = "Você é proprietário de uma ou mais organizações. "
+            + "Transfira a posse ou exclua as organizações antes de excluir sua conta.";
 
-    public UserService(UserRepository userRepository) {
+    private final UserRepository userRepository;
+    private final OrganizationMemberRepository memberRepository;
+    private final UserAvatarRepository avatarRepository;
+
+    public UserService(UserRepository userRepository, OrganizationMemberRepository memberRepository,
+                       UserAvatarRepository avatarRepository) {
         this.userRepository = userRepository;
+        this.memberRepository = memberRepository;
+        this.avatarRepository = avatarRepository;
     }
 
     public UserEntity buscarPorKeycloakId(String keycloakId) {
-        return userRepository.findByKeycloakId(keycloakId).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
-    }
-
-    @Transactional
-    public UserResponseDTO criarUsuario(UserRequestDTO data){
-        if (userRepository.userExistsByEmail(data.email())){
-            throw new IllegalArgumentException("Email já cadastrado, tente outro.");
-        }
-
-        UserEntity novoUsuario = new UserEntity();
-        novoUsuario.setNome(data.nome());
-        novoUsuario.setEmail(data.email());
-
-        UserEntity userLocal = userRepository.save(novoUsuario);
-
-        return converterParaDTO(userLocal);
-    }
-
-    public List<UserResponseDTO> listarUsuarios() {
-        return userRepository.userFindAll().stream()
-                .map(this::converterParaDTO)
-                .collect(Collectors.toList());
+        return userRepository.findByKeycloakId(keycloakId).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
 
     public UserResponseDTO obterPerfilUsuario(UserEntity userLogado) {
@@ -53,15 +47,14 @@ public class UserService {
     @Transactional
     public UserResponseDTO atualizarUsuario(Long id, UserRequestDTO data) {
         UserEntity userLocal = userRepository.userFindById(id)
-                .orElseThrow(()-> new IllegalArgumentException("Usuário não encontrado"));
+                .orElseThrow(()-> new ResourceNotFoundException("Usuário não encontrado"));
 
+        // Só o nome é editável; o e-mail é mantido (vem do Keycloak e autoriza convites)
         String novoNome = data.nome() != null ? data.nome() : userLocal.getNome();
-        String novoEmail = data.email() != null ? data.email() : userLocal.getEmail();
 
-        userRepository.updateUser(id, novoNome, novoEmail);
+        userRepository.updateUser(id, novoNome, userLocal.getEmail());
 
         userLocal.setNome(novoNome);
-        userLocal.setEmail(novoEmail);
 
         return converterParaDTO(userLocal);
     }
@@ -69,50 +62,81 @@ public class UserService {
     @Transactional
     public void deletarUsuario(Long id){
         if (!userRepository.userExistsById(id)) {
-            throw new IllegalArgumentException("Ususário não encontrado");
+            throw new ResourceNotFoundException("Usuário não encontrado");
+        }
+        // O vínculo em organization_users é apagado em cascata: excluir o OWNER deixaria a
+        // organização sem dono (RNE-007). A posse precisa ser transferida antes.
+        if (memberRepository.existsByUserIdAndRole(id, OrganizationRole.OWNER)) {
+            throw new ConflictException(MENSAGEM_PROPRIETARIO);
         }
         userRepository.deleteUserById(id);
     }
 
     
     public UserEntity buscarPorId(Long id) {
-        return userRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Usuário não encontrado"));
+        return userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Usuário não encontrado"));
     }
 
-    private static final java.util.Set<String> ALLOWED_AVATAR_TYPES = java.util.Set.of(
-            "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"
-    );
+    /**
+     * Retorna o avatar pedido, desde que o solicitante seja a própria pessoa ou tenha ao menos uma
+     * organização em comum com ela. Caso contrário responde como "não encontrado" (mesma resposta de
+     * um ID inexistente), para não revelar quais usuários existem. Vazio se o usuário não tem avatar.
+     */
+    @Transactional(readOnly = true)
+    public Optional<UserAvatarEntity> buscarAvatar(Long id, String keycloakIdSolicitante) {
+        UserEntity solicitante = buscarPorKeycloakId(keycloakIdSolicitante);
+        if (!solicitante.getId().equals(id) && !memberRepository.compartilhamOrganizacao(solicitante.getId(), id)) {
+            throw new ResourceNotFoundException("Usuário não encontrado");
+        }
+        Optional<UserAvatarEntity> avatar = avatarRepository.findById(id);
+        if (avatar.isEmpty() && !userRepository.userExistsById(id)) {
+            throw new ResourceNotFoundException("Usuário não encontrado");
+        }
+        return avatar;
+    }
+
 
     @Transactional
     public void updateAvatar(String keycloakId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("Arquivo de imagem vazio ou inválido.");
+            throw new BusinessException("Arquivo de imagem vazio ou inválido.");
         }
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_AVATAR_TYPES.contains(contentType.toLowerCase())) {
-            throw new IllegalArgumentException("Formato de imagem não suportado. Use JPEG, PNG, WEBP ou GIF.");
-        }
+        byte[] content;
         try {
-            userRepository.updateAvatar(keycloakId, file.getBytes(), contentType.toLowerCase());
+            content = file.getBytes();
         } catch (IOException e) {
             throw new RuntimeException("Erro ao processar imagem", e);
         }
+        // O tipo é identificado pelo conteúdo (magic bytes), não pelo Content-Type enviado pelo cliente
+        String detectedType = ImageTypeDetector.detect(content)
+                .orElseThrow(() -> new BusinessException("Formato de imagem não suportado. Use JPEG, PNG, WEBP ou GIF."));
+        UserEntity user = buscarPorKeycloakId(keycloakId);
+        avatarRepository.save(new UserAvatarEntity(user.getId(), content, detectedType, LocalDateTime.now()));
     }
 
     
     @Transactional
     public void deleteAvatar(String keycloakId) {
-        userRepository.removeAvatar(keycloakId);
+        UserEntity user = buscarPorKeycloakId(keycloakId);
+        avatarRepository.deleteById(user.getId());
     }
 
     
     @Transactional
     public void sincronizarNome(UserEntity user, String novoNome) {
-        sincronizarPerfilKeycloak(user, novoNome, null);
+        sincronizarPerfilKeycloak(user, novoNome, null, false);
     }
 
+    /**
+     * Espelha nome e e-mail do token no banco local. O e-mail só é copiado quando o Keycloak o
+     * marca como verificado: um e-mail trocado e ainda não confirmado não pode virar o e-mail local,
+     * porque é ele que autoriza convites.
+     */
     @Transactional
-    public void sincronizarPerfilKeycloak(UserEntity user, String novoNome, String novoEmail) {
+    public void sincronizarPerfilKeycloak(UserEntity user, String novoNome, String novoEmail, boolean emailVerificado) {
+        if (!emailVerificado) {
+            novoEmail = null;
+        }
         boolean alterado = false;
         String nomeFinal = user.getNome();
         String emailFinal = user.getEmail();
