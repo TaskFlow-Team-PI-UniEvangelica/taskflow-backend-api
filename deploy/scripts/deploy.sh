@@ -18,7 +18,7 @@ set_tag() { sed -i "s/^${VAR}=.*/${VAR}=$1/" tags.env; }
 wait_healthy() {
   for svc in $SERVICES; do
     echo "Aguardando saúde do serviço: $svc..."
-    for _ in $(seq 1 40); do
+    for _ in $(seq 1 72); do
       status="$(docker inspect -f '{{.State.Health.Status}}' "$($C ps -q "$svc")" 2>/dev/null || echo starting)"
       if [ "$status" = "healthy" ]; then
         echo "Serviço $svc está saudável (healthy)!"
@@ -34,7 +34,7 @@ wait_healthy() {
 # 1. Executa backup pré-deploy caso envolva backend/migrations
 if [ "$TARGET" = "backend" ] && [ -f ./scripts/backup.sh ]; then
   echo "Gerando backup pré-deploy..."
-  ./scripts/backup.sh pre-deploy || echo "Aviso: Backup pré-deploy falhou, verifique as permissões OCI."
+  ./scripts/backup.sh pre-deploy
 fi
 
 # 2. Atualiza a tag e realiza o pull da nova versão

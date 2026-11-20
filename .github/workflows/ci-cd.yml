@@ -56,7 +56,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+      - id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
@@ -64,12 +65,12 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.OWNER }}/taskflow-${{ matrix.name }}:${{ github.sha }}
-            ghcr.io/${{ env.OWNER }}/taskflow-${{ matrix.name }}:latest
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
       # As imagens são só linux/arm64 (servidor Oracle); sem TRIVY_PLATFORM o Trivy procura a
       # variante amd64 do runner, não encontra e falha (o deploy da main nunca chegava a rodar).
-      - name: Trivy - bloqueia vulnerabilidades CRITICAL com correção disponível
+      - id: trivy_critical
+        name: Trivy - bloqueia vulnerabilidades CRITICAL com correção disponível
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_PLATFORM: linux/arm64
@@ -80,7 +81,7 @@ jobs:
           trivyignores: .trivyignore
           exit-code: '1'
       - name: Trivy - relatório de vulnerabilidades HIGH (não bloqueia)
-        if: always()
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.trivy_critical.outcome != 'skipped' }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         env:
           TRIVY_PLATFORM: linux/arm64
@@ -93,12 +94,18 @@ jobs:
           output: trivy-high.txt
           skip-setup-trivy: true
       - name: Publica o relatório HIGH no resumo do job
-        if: always()
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           echo "### Trivy (HIGH) - taskflow-${{ matrix.name }}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat trivy-high.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "relatório indisponível" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Promove tag latest após aprovação no Trivy
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.trivy_critical.outcome == 'success' }}
+        run: |
+          docker buildx imagetools create \
+            -t "ghcr.io/${{ env.OWNER }}/taskflow-${{ matrix.name }}:latest" \
+            "ghcr.io/${{ env.OWNER }}/taskflow-${{ matrix.name }}:${{ github.sha }}"
 
   deploy:
     name: Deploy na Oracle Cloud
@@ -128,6 +135,7 @@ jobs:
             cd /srv/taskflow
             cp .incoming/deploy/docker-compose.prod.yml docker-compose.yml
             cp .incoming/deploy/scripts/*.sh scripts/ && chmod 700 scripts/*.sh
+            chmod 755 scripts/init-multiple-dbs.sh
             cp .incoming/deploy/scripts/*.sql scripts/ && chmod 600 scripts/*.sql
             rm -rf .incoming
             ./scripts/deploy.sh backend ${{ github.sha }}

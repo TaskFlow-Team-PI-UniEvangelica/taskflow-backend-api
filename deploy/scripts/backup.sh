@@ -18,19 +18,33 @@ dump() {
   local db="$3"
   local prefix="$4"
   local file="$DIR/${prefix}_${LABEL}_${TS}.dump"
+  local tmp="${file}.tmp"
 
   echo "Executando pg_dump para $service ($db)..."
-  $C exec -T "$service" pg_dump -U "$user" -d "$db" -Fc > "$file"
+  if ! $C exec -T "$service" pg_dump -U "$user" -d "$db" -Fc > "$tmp"; then
+    rm -f "$tmp"
+    echo "ERRO: falha ao gerar pg_dump para $service ($db)." >&2
+    return 1
+  fi
 
-  # Valida se o arquivo de dump foi gerado corretamente
-  $C exec -T "$service" pg_restore --list < "$file" > /dev/null
+  # Valida se o arquivo de dump foi gerado corretamente antes de promover ao destino final
+  if ! $C exec -T "$service" pg_restore --list < "$tmp" > /dev/null; then
+    rm -f "$tmp"
+    echo "ERRO: dump inválido para $service ($db)." >&2
+    return 1
+  fi
+
+  mv "$tmp" "$file"
   echo "Dump validado com sucesso: $file"
 
   if [ -n "${OCI_BACKUP_BUCKET:-}" ] && command -v oci >/dev/null 2>&1; then
     echo "Enviando dump para o bucket OCI ($OCI_BACKUP_BUCKET)..."
-    oci os object put --auth instance_principal --bucket-name "$OCI_BACKUP_BUCKET" \
-      --file "$file" --name "$(date +%Y/%m)/$(basename "$file")" --no-multipart >/dev/null
-    echo "Upload para OCI concluído."
+    if oci os object put --auth instance_principal --bucket-name "$OCI_BACKUP_BUCKET" \
+      --file "$file" --name "$(date +%Y/%m)/$(basename "$file")" --no-multipart >/dev/null; then
+      echo "Upload para OCI concluído."
+    else
+      echo "Aviso: falha no upload OCI para $file; backup local preservado." >&2
+    fi
   fi
 }
 
