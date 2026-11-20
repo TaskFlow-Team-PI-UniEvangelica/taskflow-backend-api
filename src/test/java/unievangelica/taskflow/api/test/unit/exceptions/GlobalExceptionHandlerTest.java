@@ -27,6 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -180,10 +181,17 @@ public class GlobalExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("Método HTTP não suportado deve responder 405")
+    @DisplayName("Método HTTP não suportado deve responder 405 com cabeçalho Allow")
     void metodoNaoSuportadoRetorna405() throws Exception {
-        assertFormato(mockMvc.perform(delete("/regra")), 405, "Method Not Allowed",
+        assertFormato(mockMvc.perform(delete("/regra")).andExpect(header().exists("Allow")), 405, "Method Not Allowed",
                 "Método HTTP não suportado para este recurso.");
+    }
+
+    @Test
+    @DisplayName("Mesmo com Accept application/json o Content-Type deve permanecer application/problem+json")
+    void mantemContentTypeProblemJsonComAcceptJson() throws Exception {
+        assertFormato(mockMvc.perform(get("/nao-encontrado").accept(MediaType.APPLICATION_JSON)),
+                404, "Not Found", "Tarefa não encontrada");
     }
 
     @Test

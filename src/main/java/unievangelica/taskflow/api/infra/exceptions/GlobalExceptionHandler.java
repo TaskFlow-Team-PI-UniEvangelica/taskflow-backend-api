@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import unievangelica.taskflow.api.domain.exception.BusinessException;
 import unievangelica.taskflow.api.domain.exception.ConflictException;
 import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
@@ -88,8 +90,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ProblemDetail> handleMaxUploadSizeExceeded(MaxUploadSizeExceededException ex) {
-        return problem(HttpStatus.PAYLOAD_TOO_LARGE,
+        return problem(HttpStatus.CONTENT_TOO_LARGE,
                 "Arquivo muito grande. O tamanho máximo permitido é de " + maxUploadFileSize + ".");
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ProblemDetail> handleMultipart(MultipartException ex) {
+        log.debug("Requisição multipart inválida: {}", ex.getMessage());
+        return problem(HttpStatus.BAD_REQUEST, "Requisição multipart inválida.");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
@@ -117,7 +125,10 @@ public class GlobalExceptionHandler {
             HttpStatusCode status = errorResponse.getStatusCode();
             log.debug("Requisição recusada com {} em {} {}: {}", status.value(), request.getMethod(),
                     request.getRequestURI(), ex.getMessage());
-            return problem(status, mensagemPara(status));
+            return ResponseEntity.status(status)
+                    .headers(errorResponse.getHeaders())
+                    .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                    .body(ProblemDetails.of(status, mensagemPara(status)));
         }
         log.error("Erro inesperado em {} {}", request.getMethod(), request.getRequestURI(), ex);
         return problem(HttpStatus.INTERNAL_SERVER_ERROR, MENSAGEM_ERRO_INTERNO);
@@ -134,6 +145,8 @@ public class GlobalExceptionHandler {
     }
 
     private static ResponseEntity<ProblemDetail> problem(HttpStatusCode status, String message) {
-        return ResponseEntity.status(status).body(ProblemDetails.of(status, message));
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(ProblemDetails.of(status, message));
     }
 }

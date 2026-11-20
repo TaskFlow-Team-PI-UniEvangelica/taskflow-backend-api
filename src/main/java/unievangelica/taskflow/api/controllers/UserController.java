@@ -55,11 +55,12 @@ public class UserController {
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "ID do usuário a ser atualizado") @PathVariable Long id, 
             @RequestBody UserRequestDTO data){
-        if (jwt != null) {
-            UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
-            if (!userLogado.getId().equals(id)) {
-                throw new SecurityException("Você só pode atualizar o seu próprio perfil.");
-            }
+        if (jwt == null) {
+            throw new SecurityException("Usuário não autenticado.");
+        }
+        UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
+        if (!userLogado.getId().equals(id)) {
+            throw new SecurityException("Você só pode atualizar o seu próprio perfil.");
         }
         UserResponseDTO usuarioAtualizado = userService.atualizarUsuario(id, data);
         return ResponseEntity.ok(usuarioAtualizado);
@@ -73,11 +74,12 @@ public class UserController {
     public ResponseEntity<Void> deletarUsuario(
             @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
             @Parameter(description = "ID do usuário") @PathVariable Long id){
-        if (jwt != null) {
-            UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
-            if (!userLogado.getId().equals(id)) {
-                throw new SecurityException("Você só pode excluir a sua própria conta.");
-            }
+        if (jwt == null) {
+            throw new SecurityException("Usuário não autenticado.");
+        }
+        UserEntity userLogado = userService.buscarPorKeycloakId(jwt.getSubject());
+        if (!userLogado.getId().equals(id)) {
+            throw new SecurityException("Você só pode excluir a sua própria conta.");
         }
         userService.deletarUsuario(id);
         return ResponseEntity.noContent().build();

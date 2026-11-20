@@ -206,16 +206,57 @@ public class UserProvisioningFilterTest {
     }
 
     @Test
-    @DisplayName("Corrida no primeiro login (violação de unicidade) é absorvida e a requisição segue")
+    @DisplayName("E-mail com maiúsculas e espaços é normalizado antes de buscar e gravar")
+    void normalizaEmailAntesDeBuscarEGravar() throws Exception {
+        autenticarCom(Map.of("email", "  Ana@Exemplo.COM ", "email_verified", true));
+        when(userRepository.findByKeycloakId(SUB)).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("ana@exemplo.com")).thenReturn(Optional.empty());
+
+        filter.doFilter(request, response, chain);
+
+        ArgumentCaptor<UserEntity> salvo = ArgumentCaptor.forClass(UserEntity.class);
+        verify(userRepository).findByEmail("ana@exemplo.com");
+        verify(userRepository).save(salvo.capture());
+        assertThat(salvo.getValue().getEmail()).isEqualTo("ana@exemplo.com");
+        assertSeguiuACadeia();
+    }
+
+    @Test
+    @DisplayName("Token sem claim email ou em branco é recusado com 409 sem gravar")
+    void recusaTokenSemEmail() throws Exception {
+        autenticarCom(Map.of("given_name", "SemEmail"));
+        when(userRepository.findByKeycloakId(SUB)).thenReturn(Optional.empty());
+
+        filter.doFilter(request, response, chain);
+
+        assertConflito();
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Corrida no primeiro login (sub já gravado por outra thread) é absorvida e a requisição segue")
     void corridaNoPrimeiroLogin() throws Exception {
         autenticarCom(Map.of("email", EMAIL, "email_verified", true));
-        when(userRepository.findByKeycloakId(SUB)).thenReturn(Optional.empty());
+        when(userRepository.findByKeycloakId(SUB)).thenReturn(Optional.empty(), Optional.of(linhaExistente(SUB)));
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
         when(userRepository.save(any())).thenThrow(new DataIntegrityViolationException("users_keycloak_id_key"));
 
         filter.doFilter(request, response, chain);
 
         assertSeguiuACadeia();
+    }
+
+    @Test
+    @DisplayName("Violação de unicidade sem o sub persistido (conflito de e-mail concorrente) responde 409")
+    void conflitoDeEmailConcorrenteRetorna409() throws Exception {
+        autenticarCom(Map.of("email", EMAIL, "email_verified", true));
+        when(userRepository.findByKeycloakId(SUB)).thenReturn(Optional.empty(), Optional.empty());
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
+        when(userRepository.save(any())).thenThrow(new DataIntegrityViolationException("users_email_key"));
+
+        filter.doFilter(request, response, chain);
+
+        assertConflito();
     }
 
     @Test

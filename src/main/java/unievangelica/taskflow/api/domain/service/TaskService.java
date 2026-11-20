@@ -106,6 +106,13 @@ public class TaskService {
         OrganizationEntity organization = organizationRepository.findById(orgId)
             .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada."));
 
+        if (data.titulo() == null || data.titulo().trim().isEmpty()) {
+            throw new BusinessException("O título da tarefa é obrigatório.");
+        }
+        if (data.titulo().length() > 255) {
+            throw new BusinessException("O título da tarefa deve ter no máximo 255 caracteres.");
+        }
+
         TaskEntity novaTarefa = new TaskEntity();
         novaTarefa.setTitulo(data.titulo());
         novaTarefa.setDescricao(data.descricao());
@@ -135,7 +142,10 @@ public class TaskService {
         }
 
         // Numeração atômica no banco, após as validações (a linha da organização fica travada até o commit)
-        int nextTaskNumber = organizationRepository.nextTaskNumber(orgId);
+        Integer nextTaskNumber = organizationRepository.nextTaskNumber(orgId);
+        if (nextTaskNumber == null) {
+            throw new ResourceNotFoundException("Organização não encontrada.");
+        }
         novaTarefa.setTaskNumber(nextTaskNumber);
 
         TaskEntity taskLocal = taskRepository.save(novaTarefa);

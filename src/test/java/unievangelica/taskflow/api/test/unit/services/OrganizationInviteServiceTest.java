@@ -132,7 +132,7 @@ public class OrganizationInviteServiceTest {
         when(organizationService.hasPermissionTo(userLogado, 10L, "MANAGE_MEMBERS")).thenReturn(true);
         doNothing().when(organizationService).validarHierarquiaDeRoles(userLogado, 10L, OrganizationRole.MEMBER);
         when(inviteRepository.findByOrganizationIdAndInvitedEmailIgnoreCaseAndStatus(10L, "novo@taskflow.com", InviteStatus.PENDING))
-                .thenReturn(Optional.empty());
+                .thenReturn(List.of());
 
         OrganizationInviteRequestDTO request = new OrganizationInviteRequestDTO();
         request.setEmail("Novo@TaskFlow.com ");
@@ -144,6 +144,36 @@ public class OrganizationInviteServiceTest {
         ArgumentCaptor<InviteCreatedEvent> evento = ArgumentCaptor.forClass(InviteCreatedEvent.class);
         verify(eventPublisher, times(1)).publishEvent(evento.capture());
         assertEquals(new InviteCreatedEvent("novo@taskflow.com", "Owner User", "TaskFlow Org"), evento.getValue());
+    }
+
+    @Test
+    @DisplayName("Ao reenviar convite quando o pendente anterior expirou, marca o antigo como EXPIRED e cria o novo")
+    void testCreateInviteExpiradoAnteriorMarcaExpiredECriaNovo() {
+        OrganizationInviteEntity expirado = OrganizationInviteEntity.builder()
+                .id(49L)
+                .organization(organization)
+                .inviter(userLogado)
+                .invitedEmail("novo@taskflow.com")
+                .role("MEMBER")
+                .status(InviteStatus.PENDING)
+                .createdAt(LocalDateTime.now().minusDays(10))
+                .expiresAt(LocalDateTime.now().minusDays(3))
+                .build();
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(organization));
+        when(organizationService.hasPermissionTo(userLogado, 10L, "MANAGE_MEMBERS")).thenReturn(true);
+        doNothing().when(organizationService).validarHierarquiaDeRoles(userLogado, 10L, OrganizationRole.MEMBER);
+        when(inviteRepository.findByOrganizationIdAndInvitedEmailIgnoreCaseAndStatus(10L, "novo@taskflow.com", InviteStatus.PENDING))
+                .thenReturn(List.of(expirado));
+
+        OrganizationInviteRequestDTO request = new OrganizationInviteRequestDTO();
+        request.setEmail("novo@taskflow.com");
+        request.setRole("MEMBER");
+
+        inviteService.createInvite(10L, request);
+
+        assertEquals(InviteStatus.EXPIRED, expirado.getStatus());
+        verify(inviteRepository, times(2)).save(any(OrganizationInviteEntity.class));
+        verify(eventPublisher, times(1)).publishEvent(any(InviteCreatedEvent.class));
     }
 
     @Test
@@ -184,7 +214,7 @@ public class OrganizationInviteServiceTest {
         when(organizationRepository.findById(10L)).thenReturn(Optional.of(organization));
         when(organizationService.hasPermissionTo(userLogado, 10L, "MANAGE_MEMBERS")).thenReturn(true);
         when(inviteRepository.findByOrganizationIdAndInvitedEmailIgnoreCaseAndStatus(10L, "novo@taskflow.com", InviteStatus.PENDING))
-                .thenReturn(Optional.of(pendente));
+                .thenReturn(List.of(pendente));
 
         OrganizationInviteRequestDTO request = new OrganizationInviteRequestDTO();
         request.setEmail("novo@taskflow.com");
@@ -209,7 +239,7 @@ public class OrganizationInviteServiceTest {
                 .expiresAt(LocalDateTime.now().minusDays(3))
                 .build();
 
-        when(inviteRepository.findById(100L)).thenReturn(Optional.of(invite));
+        when(inviteRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(invite));
 
         assertThrows(BusinessException.class, () -> inviteService.acceptInvite(100L));
         assertEquals(InviteStatus.EXPIRED, invite.getStatus());
@@ -253,7 +283,7 @@ public class OrganizationInviteServiceTest {
         OrganizationInviteEntity convite = convitePendentePara("vitima@taskflow.com");
         userLogado.setEmail("vitima@taskflow.com"); // e-mail local adulterado
         autenticarComToken("owner@taskflow.com", true); // e-mail real do token
-        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+        when(inviteRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(convite));
 
         SecurityException ex = assertThrows(SecurityException.class, () -> inviteService.acceptInvite(200L));
 
@@ -268,7 +298,7 @@ public class OrganizationInviteServiceTest {
     void aceiteRecusadoComEmailNaoVerificado() {
         OrganizationInviteEntity convite = convitePendentePara("owner@taskflow.com");
         autenticarComToken("owner@taskflow.com", false);
-        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+        when(inviteRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(convite));
 
         assertThrows(SecurityException.class, () -> inviteService.acceptInvite(200L));
         assertEquals(InviteStatus.PENDING, convite.getStatus());
@@ -279,7 +309,7 @@ public class OrganizationInviteServiceTest {
     @DisplayName("Destinatário com e-mail verificado aceita o convite e entra com o papel do convite")
     void aceiteDoDestinatarioVerificado() {
         OrganizationInviteEntity convite = convitePendentePara("OWNER@taskflow.com");
-        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+        when(inviteRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(convite));
         when(memberRepository.findByOrganizationIdAndUserId(10L, 1L)).thenReturn(Optional.empty());
 
         inviteService.acceptInvite(200L);
@@ -295,7 +325,7 @@ public class OrganizationInviteServiceTest {
     @DisplayName("Recusa de convite de outra pessoa responde 403 e não altera o convite")
     void recusaDeConviteDeOutro() {
         OrganizationInviteEntity convite = convitePendentePara("vitima@taskflow.com");
-        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+        when(inviteRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(convite));
 
         assertThrows(SecurityException.class, () -> inviteService.declineInvite(200L));
         assertEquals(InviteStatus.PENDING, convite.getStatus());
@@ -306,7 +336,7 @@ public class OrganizationInviteServiceTest {
     @DisplayName("Destinatário com e-mail verificado recusa o convite")
     void recusaDoDestinatario() {
         OrganizationInviteEntity convite = convitePendentePara("owner@taskflow.com");
-        when(inviteRepository.findById(200L)).thenReturn(Optional.of(convite));
+        when(inviteRepository.findByIdForUpdate(200L)).thenReturn(Optional.of(convite));
 
         inviteService.declineInvite(200L);
 

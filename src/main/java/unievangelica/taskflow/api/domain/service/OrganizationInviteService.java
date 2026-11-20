@@ -92,10 +92,15 @@ public class OrganizationInviteService {
             throw new BusinessException("Este usuário já é membro da organização.");
         }
 
-        Optional<OrganizationInviteEntity> existingInvite = inviteRepository
+        LocalDateTime now = LocalDateTime.now();
+        List<OrganizationInviteEntity> pendingInvites = inviteRepository
                 .findByOrganizationIdAndInvitedEmailIgnoreCaseAndStatus(organizationId, invitedEmail, InviteStatus.PENDING);
-        if (existingInvite.isPresent() && existingInvite.get().getExpiresAt().isAfter(LocalDateTime.now())) {
-            throw new BusinessException("Já existe um convite pendente para este e-mail nesta organização.");
+        for (OrganizationInviteEntity existing : pendingInvites) {
+            if (existing.getExpiresAt() == null || existing.getExpiresAt().isAfter(now)) {
+                throw new BusinessException("Já existe um convite pendente para este e-mail nesta organização.");
+            }
+            existing.setStatus(InviteStatus.EXPIRED);
+            inviteRepository.save(existing);
         }
 
         OrganizationInviteEntity invite = OrganizationInviteEntity.builder()
@@ -104,8 +109,8 @@ public class OrganizationInviteService {
                 .invitedEmail(invitedEmail)
                 .role(targetRole.name())
                 .status(InviteStatus.PENDING)
-                .createdAt(LocalDateTime.now())
-                .expiresAt(LocalDateTime.now().plusDays(7))
+                .createdAt(now)
+                .expiresAt(now.plusDays(7))
                 .build();
 
         inviteRepository.save(invite);
@@ -114,6 +119,7 @@ public class OrganizationInviteService {
         eventPublisher.publishEvent(new InviteCreatedEvent(invitedEmail, inviter.getNome(), organization.getNome()));
     }
 
+    @Transactional(readOnly = true)
     public List<InviteResponseDTO> getMyInvites() {
         Optional<String> email = emailVerificadoDoToken();
         if (email.isEmpty()) {
@@ -130,7 +136,7 @@ public class OrganizationInviteService {
     @Transactional(noRollbackFor = ConviteExpiradoException.class)
     public void acceptInvite(Long inviteId) {
         UserEntity user = getAuthenticatedUser();
-        OrganizationInviteEntity invite = inviteRepository.findById(inviteId)
+        OrganizationInviteEntity invite = inviteRepository.findByIdForUpdate(inviteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Convite não encontrado"));
 
         exigirDestinatario(invite);
@@ -159,7 +165,7 @@ public class OrganizationInviteService {
 
     @Transactional
     public void declineInvite(Long inviteId) {
-        OrganizationInviteEntity invite = inviteRepository.findById(inviteId)
+        OrganizationInviteEntity invite = inviteRepository.findByIdForUpdate(inviteId)
                 .orElseThrow(() -> new ResourceNotFoundException("Convite não encontrado"));
 
         exigirDestinatario(invite);

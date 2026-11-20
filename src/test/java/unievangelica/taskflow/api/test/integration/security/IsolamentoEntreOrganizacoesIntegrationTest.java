@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -24,6 +25,7 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -74,6 +76,10 @@ class IsolamentoEntreOrganizacoesIntegrationTest {
                 .content("{\"nome\":\"Org da Ana\"}"), ana));
         tarefaDaAna = id(json(post("/task").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"titulo\":\"Tarefa da Ana\",\"organizationId\":" + orgDaAna + "}"), ana));
+        MockMultipartFile avatarPng = new MockMultipartFile(
+                "file", "avatar.png", "image/png",
+                new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0});
+        mvc.perform(multipart("/user/me/avatar").file(avatarPng).with(ana)).andExpect(status().isOk());
         orgDoBruno = id(json(post("/organization").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nome\":\"Org do Bruno\"}"), bruno));
     }

@@ -502,6 +502,42 @@ public class TaskServiceTest {
         verify(taskRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("Deve validar título obrigatório e limite de 255 caracteres antes de reservar taskNumber")
+    void testarCriarTaskValidaTituloAntesDeReservarNumero() {
+        UserEntity criador = usuario(1L);
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(100L);
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
+        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+
+        TaskRequestDTO tituloVazio = new TaskRequestDTO("   ", null, null, null, null, null, 100L);
+        assertThrows(BusinessException.class, () -> taskService.criarTask(tituloVazio, criador));
+
+        TaskRequestDTO tituloLongo = new TaskRequestDTO("a".repeat(256), null, null, null, null, null, 100L);
+        assertThrows(BusinessException.class, () -> taskService.criarTask(tituloLongo, criador));
+
+        verify(organizationRepository, never()).nextTaskNumber(anyLong());
+        verify(taskRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve lançar ResourceNotFoundException quando nextTaskNumber retornar null (organização removida em paralelo)")
+    void testarCriarTaskQuandoNextTaskNumberRetornaNull() {
+        UserEntity criador = usuario(1L);
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(100L);
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
+        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+        when(organizationRepository.nextTaskNumber(100L)).thenReturn(null);
+
+        TaskRequestDTO req = new TaskRequestDTO("Titulo válido", null, null, null, null, null, 100L);
+        assertThrows(ResourceNotFoundException.class, () -> taskService.criarTask(req, criador));
+        verify(taskRepository, never()).save(any());
+    }
+
     // --- Histórico da organização (RNE-006: excluídas só para cargos acima de MEMBER) ---
 
     private OrganizationEntity orgComMembro(Long orgId, Integer retentionDays, UserEntity user, OrganizationRole role) {

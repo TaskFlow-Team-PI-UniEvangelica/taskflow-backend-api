@@ -22,6 +22,7 @@ import unievangelica.taskflow.api.infra.exceptions.ProblemDetails;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -70,12 +71,18 @@ public class UserProvisioningFilter extends OncePerRequestFilter {
             return true;
         }
 
-        String email = jwt.getClaimAsString("email");
-        if (email != null) {
-            Optional<UserEntity> existingByEmail = userRepository.findByEmail(email);
-            if (existingByEmail.isPresent()) {
-                return vincularPorEmail(existingByEmail.get(), keycloakId, Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified")));
-            }
+        String rawEmail = jwt.getClaimAsString("email");
+        String email = (rawEmail != null && !rawEmail.trim().isEmpty())
+                ? rawEmail.trim().toLowerCase(Locale.ROOT)
+                : null;
+        if (email == null) {
+            log.warn("Provisionamento recusado: token sub {} sem claim email", keycloakId);
+            return false;
+        }
+
+        Optional<UserEntity> existingByEmail = userRepository.findByEmail(email);
+        if (existingByEmail.isPresent()) {
+            return vincularPorEmail(existingByEmail.get(), keycloakId, Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified")));
         }
 
         UserEntity newUser = new UserEntity();
@@ -83,13 +90,7 @@ public class UserProvisioningFilter extends OncePerRequestFilter {
         newUser.setNome(montarNome(jwt));
         newUser.setEmail(email);
 
-        try {
-            userRepository.save(newUser);
-        } catch (DataIntegrityViolationException e) {
-            // Requisições simultâneas no primeiro login: a primeira já persistiu o usuário.
-            log.debug("Usuário {} já provisionado por requisição concorrente: {}", keycloakId, e.getMostSpecificCause().getMessage());
-        }
-        return true;
+        return salvarComTratamentoDeConcorrencia(newUser, keycloakId, "provisionar");
     }
 
     private boolean vincularPorEmail(UserEntity existing, String keycloakId, boolean emailVerificado) {
@@ -99,8 +100,22 @@ public class UserProvisioningFilter extends OncePerRequestFilter {
             return false;
         }
         existing.setKeycloakId(keycloakId);
-        userRepository.save(existing);
-        return true;
+        return salvarComTratamentoDeConcorrencia(existing, keycloakId, "vincular");
+    }
+
+    private boolean salvarComTratamentoDeConcorrencia(UserEntity user, String keycloakId, String acao) {
+        try {
+            userRepository.save(user);
+            return true;
+        } catch (DataIntegrityViolationException e) {
+            if (userRepository.findByKeycloakId(keycloakId).isPresent()) {
+                log.debug("Usuário {} já atendido por requisição concorrente ao {}: {}",
+                        keycloakId, acao, e.getMostSpecificCause().getMessage());
+                return true;
+            }
+            log.warn("Conflito de integridade ao {} usuário {}: {}", acao, keycloakId, e.getMostSpecificCause().getMessage());
+            return false;
+        }
     }
 
     private static String montarNome(Jwt jwt) {

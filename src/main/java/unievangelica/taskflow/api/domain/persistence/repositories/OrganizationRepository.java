@@ -22,5 +22,5 @@ public interface OrganizationRepository extends JpaRepository<OrganizationEntity
      */
     @Query(value = "UPDATE organizations SET last_task_number = last_task_number + 1 WHERE id = :orgId RETURNING last_task_number",
             nativeQuery = true)
-    int nextTaskNumber(@Param("orgId") Long orgId);
+    Integer nextTaskNumber(@Param("orgId") Long orgId);
 }
