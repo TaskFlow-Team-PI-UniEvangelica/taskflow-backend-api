@@ -2,11 +2,8 @@
 FROM --platform=$BUILDPLATFORM maven:3.9.6-eclipse-temurin-21-jammy AS build
 WORKDIR /app
 
-# Cache das dependências Maven
+# Copia dependências e código e compila sem dependency:go-offline
 COPY pom.xml .
-RUN mvn -B -q dependency:go-offline
-
-# Compilação do código
 COPY src ./src
 RUN mvn -B -q clean package -DskipTests
 
