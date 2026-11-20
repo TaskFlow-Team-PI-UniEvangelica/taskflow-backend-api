@@ -1,74 +1,92 @@
 # Taskflow API
-API desenvolvida com foco no gerenciado de usuários e tarefas, utilizando Spring Boot e Java 21, para a execução do Projeto Integrativo e Projeto de Conclusão de Curso da Universidade Evangélica de Ánapolis.
+API desenvolvida com foco no gerenciamento de usuários, organizações e tarefas, utilizando Spring Boot 4 e Java 21, para a execução do Projeto Integrativo e Projeto de Conclusão de Curso da Universidade Evangélica de Goiás (UniEVANGÉLICA).
 
-- URL de deploy de testes, cole no navegador para acessar a aplicação sem executar localmente:
-    ```
-    a definir ainda
-    ```
+- **URL oficial de produção:**
+  - Frontend: `https://taskflow.party`
+  - API: `https://api.taskflow.party`
+  - Autenticação (Keycloak): `https://auth.taskflow.party`
 
 ## Configuração e Variáveis de Ambiente
-Antes de rodar a aplicação, renomeie o arquivo `.env.example` para `.env` e preencha as variáveis corretamente (Banco de dados, Keycloak, etc).
+Antes de rodar a aplicação, renomeie o arquivo `.env.example` para `.env` e preencha as variáveis corretamente (Banco de dados, Keycloak, SMTP, etc).
 
 ## Swagger / OpenAPI
-A documentação interativa da API pode ser acessada através do Swagger UI. Como utilizamos o Keycloak para autenticação (Multi-Tenant RBAC), o Swagger já está configurado para interagir com o OAuth2 (Authorization Code Flow) e redirecionar para a tela de login.
-- URL do Swagger: `http://localhost:8080/swagger-ui/index.html`
+Em desenvolvimento, a documentação interativa da API pode ser acessada através do Swagger UI. Como utilizamos o Keycloak para autenticação (Multi-Tenant RBAC), o Swagger está configurado para interagir com o OAuth2 (Authorization Code Flow com PKCE).
+- URL do Swagger (dev): `http://localhost:8080/swagger-ui/index.html`
+- Em produção (`SPRING_PROFILES_ACTIVE=prod`), o Swagger UI e `/v3/api-docs` ficam desativados por segurança.
 
 ## Dependências e Tecnologias Usadas
-* **Linguagem:** Java 21+
-* **Framework:** Spring Boot
-* **Banco de Dados:** PostgreSQL
-* **Migrações de Banco:** Flyway
-* **Autenticação & IAM:** Spring Security 6 Resource Server integrado ao Keycloak (OAuth2, OpenID Connect e JWT com validação JWKS)
-* **Infraestrutura:** Docker, Docker Compose e Makefile
-* **Testes:** JUnit 5, Mockito, AssertJ
-* **Utilitários:** Lombok, Spring DevTools
+* **Linguagem:** Java 21
+* **Framework:** Spring Boot 4.0.9
+* **Banco de Dados:** PostgreSQL 16 (instância única em produção com papéis segregados por privilégio mínimo)
+* **Migrações de Banco:** Flyway (`V1`–`V13`)
+* **Autenticação & IAM:** Spring Security 7 Resource Server integrado ao Keycloak 26.8.2 (OAuth2, OpenID Connect, JWT com validação JWKS e audiência `aud=taskflow-api`)
+* **Padronização de Erros:** RFC 9457 `ProblemDetail` (`application/problem+json`) via `GlobalExceptionHandler`
+* **Infraestrutura & CI/CD:** Docker, Docker Compose, GNU Make (`Makefile`), GitHub Actions + Trivy + Oracle Cloud (ARM64) + Cloudflare Tunnel
+* **Testes:** JUnit 5, Mockito, AssertJ, Spring Security Test e Testcontainers (PostgreSQL 16)
+* **Utilitários:** Lombok, FreeMarker (e-mails assíncronos pós-commit), SpringDoc OpenAPI 3 (`3.0.1`)
 
 ## Organização de Pastas
-A arquitetura do projeto é baseada em uma arquitetura limpa visando uma maior organização de código e separação de responsabilidades.
+A arquitetura do projeto segue uma arquitetura em camadas (`controllers`, `domain`, `dto` e `infra`), visando organização clara de código e separação de responsabilidades.
 ```
 taskflow-backend-api/
 ├── src/
 │   ├── main/
 │   │   ├── java/unievangelica/taskflow/api/
 │   │   │   ├── controllers/                    # Controllers com as rotas da API REST
-│   │   │   ├── domain/                         # Núcleo da aplicação (Regras e Banco)
+│   │   │   ├── domain/                         # Núcleo da aplicação (Regras, Eventos e Banco)
+│   │   │   │   ├── event/                      # Eventos de domínio pós-commit (InviteCreatedEvent)
+│   │   │   │   ├── exception/                  # Exceções de domínio (Business, Conflict, ConviteExpirado, ResourceNotFound)
 │   │   │   │   ├── persistence/                # Camada de acesso a dados
-│   │   │   │   │   ├── entities/               # Entidades mapeadas para o banco (JPA/Hibernate)
+│   │   │   │   │   ├── entities/               # Entidades mapeadas (User, UserAvatar, Organization, Task, TaskHistory, Invites)
 │   │   │   │   │   └── repositories/           # Interfaces de persistência (Spring Data JPA)
-│   │   │   │   └── service/                    # Classes contendo as regras de negócio
+│   │   │   │   └── service/                    # Regras de negócio, e-mails pós-commit e jobs agendados
 │   │   │   ├── dto/                            # Objetos de Transferência de Dados (DTOs)
 │   │   │   │   ├── request/                    # DTOs para payload de entrada (Validações)
 │   │   │   │   └── response/                   # DTOs para formatação de saída
-│   │   │   ├── infra/security/                 # Configurações do Spring Security e filtros JWT
+│   │   │   ├── infra/                          # Configurações transversais de infraestrutura
+│   │   │   │   ├── async/                      # Configuração de execução assíncrona (@Async)
+│   │   │   │   ├── database/                   # Avisos e validações de papel do banco em startup
+│   │   │   │   ├── exceptions/                 # GlobalExceptionHandler (ProblemDetail RFC 9457)
+│   │   │   │   ├── scheduling/                 # Agendamento do expurgo de histórico (@Scheduled)
+│   │   │   │   └── security/                   # Spring Security 7, filtro JIT, entry point 401 e OpenAPI
 │   │   │   └── ApiTaskflowApplication.java     # Classe de inicialização do Spring Boot
 │   │   └── resources/                          # Arquivos estáticos e de configuração
-│   │       ├── db/migration/                   # Scripts SQL de versionamento do Flyway
-│   │       └── application.properties          # Configurações base do projeto
+│   │       ├── db/migration/                   # Scripts SQL de versionamento do Flyway (V1–V13)
+│   │       ├── templates/
+│   │       │   └── invite.ftlh                 # Template FreeMarker de convite organizacional
+│   │       ├── application.properties          # Configurações base do projeto
+│   │       └── application-prod.properties     # Profile de produção (ddl-auto=validate, open-in-view=false)
 │   └── test/
-│       └── java/unievangelica/taskflow/api/
-│           ├── test/
-│           │   ├── integration/                # Suítes de testes de integração
-│           │   └── unit/                       # Suítes de testes unitários isolados
-│           │       ├── controllers/
-│           │       ├── entities/
-│           │       ├── repositories/
-│           │       └── services/                # Testes para validação de regras de negócios
-│           └── ApiTaskflowApplicationTests.java # Contexto principal de testes
-├── docker-compose.yml                           # Orquestração de Produção em containers
-├── docker-compose.dev.yml                       # Orquestração de Desenvolvimento (Keycloak, DBs, Mailpit, PgAdmin)
-├── Dockerfile                                   # Build da imagem da API
-├── keycloak/                                    # Arquivos de provisionamento e temas do Keycloak
-│   ├── realm-export.json                        # Export do Realm TaskFlow (Clients, Roles, Políticas)
-│   └── theme/taskflow/                          # Tema customizado Taskflow (Login, Registro, E-mails, Verificação)
-├── Makefile                                     # Atalhos de automação (make run, make test, etc.)
-├── .env                                         # Arquivo de variáveis de ambiente locais
-├── .env.example                                 # Modelo de variáveis de ambiente para dev/prod
-├── pom.xml                                      # Gerenciador de dependências (Maven)
-└── README.md                                    # Documentação principal do projeto
+│       ├── java/unievangelica/taskflow/api/
+│       │   ├── test/
+│       │   │   ├── integration/                # Testes de integração com Testcontainers PostgreSQL 16 (BOLA, schema, avatares, convites)
+│       │   │   └── unit/                       # Testes unitários isolados
+│       │   │       ├── controllers/            # MockMvc & Spring Security Test
+│       │   │       ├── database/               # Avisos de privilégio de banco
+│       │   │       ├── entities/               # Entidades e enums
+│       │   │       ├── exceptions/             # Contrato ProblemDetail RFC 9457
+│       │   │       ├── security/               # Filtro JIT, SpringSecurityConfig e audiência JWT
+│       │   │       └── services/               # Serviços, e-mails assíncronos e expurgo agendado
+│       │   └── ApiTaskflowApplicationTests.java # Carregamento de contexto de testes
+│       └── resources/
+│           └── application-it.properties       # Perfil dos testes de integração
+├── deploy/
+│   ├── docker-compose.prod.yml                 # Stack de produção (PostgreSQL único, Keycloak 26, API, Frontend, Cloudflared)
+│   └── scripts/                                # Scripts operacionais (deploy, backup, privilégio mínimo, setup Keycloak)
+├── keycloak/                                   # Provisionamento, imagem otimizada e tema customizado do Keycloak 26
+│   ├── Dockerfile                              # Build multi-stage com kc.sh build e tema embutido
+│   ├── realm-export.json                       # Export do Realm TaskFlow (Clients, Roles, User Profile, Políticas)
+│   └── theme/taskflow/                         # Tema customizado (Login, Registro, Account Console, E-mails)
+├── Dockerfile                                  # Build da imagem da API (usuário não-root)
+├── docker-compose.dev.yml                      # Orquestração de Desenvolvimento (Keycloak, DBs, Mailpit, PgAdmin)
+├── Makefile                                    # Atalhos de automação para desenvolvimento e testes
+├── .env.example                                # Modelo de variáveis de ambiente para dev/prod
+├── pom.xml                                     # Gerenciador de dependências (Maven)
+└── README.md                                   # Documentação principal do projeto
 ```
 
-# Configuração do .env para Desenvolvimento (Local)
-Crie um arquivo chamado `.env` na raiz do projeto. Ele será usado pelo `docker-compose.yml` (para Dev) e pelo IntelliJ.
+# Configuração do `.env` para Desenvolvimento (Local)
+Crie um arquivo chamado `.env` na raiz do projeto (a partir do `.env.example`). Ele será usado pelo `docker-compose.dev.yml` e pela IDE (ex: IntelliJ).
 ```env
 # ===============================
 # BANCO DA API (PostgreSQL)
@@ -78,7 +96,7 @@ DB_USER=postgres
 DB_PASSWORD=postgres_secret
 
 # ===============================
-# URLS EXCLUSIVAS PARA RODAR NO INTELLIJ
+# URLS EXCLUSIVAS PARA RODAR NO INTELLIJ / HOST
 # ===============================
 DB_URL=jdbc:postgresql://localhost:5433/taskflow
 KEYCLOACK_URL_VITE=http://localhost:9090/realms/taskflow-realm
@@ -109,175 +127,127 @@ KC_ADMIN_PASSWORD=admin
 PGADMIN_EMAIL=admin@taskflow.com
 PGADMIN_PASSWORD=admin
 ```
-Aponte o .env como variáveis de ambiente usando o caminho do arquivo do .env no IntelliJ conforme o vídeo:
-https://drive.google.com/file/d/1DN_R-e5uknsZUgw9rTt7TvpMb6NjcUoc/view?usp=sharing
+Aponte o `.env` como variáveis de ambiente na configuração de execução da sua IDE (por exemplo no IntelliJ conforme demonstrado em: https://drive.google.com/file/d/1DN_R-e5uknsZUgw9rTt7TvpMb6NjcUoc/view?usp=sharing).
 
-# Configuração do .env para Produção
-No servidor de produção, o `.env` exigirá chaves de segurança estritas e domínios oficiais.
+# Configuração do `.env` para Produção (`/srv/taskflow/.env`)
+Em produção, o arquivo `deploy/docker-compose.prod.yml` exige validação estrita das variáveis (sem senhas padrão) e papéis segregados por privilégio mínimo no PostgreSQL:
 ```env
-DB_NAME=taskflow_prod
-DB_USER=postgres
-DB_PASSWORD=sua_senha_segura_aqui
-
-KC_DB_NAME=keycloak_prod
-KC_DB_USER=keycloak
-KC_DB_PASSWORD=outra_senha_segura_aqui
-
-KC_ADMIN_USER=admin
-KC_ADMIN_PASSWORD=senha_admin_segura
-
-# Domínios Oficiais (SEM barra no final)
-KC_DOMAIN=auth.taskflow.party
+GHCR_OWNER=taskflow-team-pi-unievangelica
 FRONTEND_URL=https://taskflow.party
+KC_DOMAIN=auth.taskflow.party
 
-# Token do Cloudflare Zero Trust (Quando adquirir o domínio)
-CLOUDFLARE_TUNNEL_TOKEN=seu_token_gigante_aqui
+# Banco da API (superusuário de inicialização/backup + papéis de privilégio mínimo)
+DB_NAME=taskflow
+DB_USER=postgres_admin
+DB_PASSWORD=gerar_com_openssl_rand_hex_32
+DB_OWNER_USER=taskflow_owner
+DB_OWNER_PASSWORD=gerar_com_openssl_rand_hex_32
+DB_APP_USER=taskflow_app
+DB_APP_PASSWORD=gerar_com_openssl_rand_hex_32
+
+# Banco do Keycloak
+KC_DB_NAME=keycloak
+KC_DB_USER=keycloak
+KC_DB_PASSWORD=gerar_com_openssl_rand_hex_32
+
+KC_ADMIN_USER=bootstrap-admin
+KC_ADMIN_PASSWORD=gerar_com_openssl_rand_hex_24
+
+# SMTP (OCI Email Delivery)
+SMTP_HOST=smtp.email.sa-saopaulo-1.oci.oraclecloud.com
+SMTP_PORT=587
+SMTP_USER=ocid1.user.oc1...
+SMTP_PASSWORD=sua_senha_smtp_oracle
+SMTP_FROM=nao-responda@taskflow.party
+
+# Cloudflare Tunnel & Backups
+CLOUDFLARE_TUNNEL_TOKEN=seu_token_cloudflare_tunnel
+OCI_BACKUP_BUCKET=taskflow-backups
 ```
 
-
-
 ## Arquitetura Multi-Tenancy (Organizações) e Governança de Tarefas
-O sistema opera em uma arquitetura Multi-Tenant (SaaS) orientada a Organizações:
-- Um Usuário pode pertencer a múltiplas Organizações (`OrganizationEntity`), com papéis hierárquicos gerenciados na aplicação: `OWNER` > `SUB_OWNER` > `MANAGER` > `MEMBER`.
-- **Governança Granular por Organização:** O `OWNER` configura permissões para membros (`MEMBER`) relativas à criação, prazos, edição (todas vs. próprias/atribuídas), movimentação no Kanban (todas vs. próprias/atribuídas), retorno de concluídas e exclusão de tarefas, além de política de retenção para auditoria de tarefas excluídas.
-- **Numeração Sequencial Monotônica:** Cada tarefa recebe um número sequencial único dentro de sua organização (`1 - Nome da Task`), que jamais se repete ou é reciclado.
-- As Tarefas (`TaskEntity`) pertencem primariamente a uma Organização, garantindo estrito isolamento de dados entre equipes e prevenindo vulnerabilidades de BOLA (Broken Object Level Authorization).
+O sistema opera em arquitetura Multi-Tenant orientada a Organizações:
+- Um usuário pode pertencer a múltiplas Organizações (`OrganizationEntity`), com papéis hierárquicos gerenciados na aplicação: `OWNER` > `SUB_OWNER` > `MANAGER` > `MEMBER`.
+- **Governança Granular por Organização:** O `OWNER` e o `SUB_OWNER` podem configurar as 9 flags de permissões dinâmicas para membros (`MEMBER`) relativas à criação, prazos, edição (todas vs. próprias/atribuídas), movimentação no Kanban (todas vs. próprias/atribuídas), retorno de concluídas e exclusão de tarefas. Apenas o `OWNER` pode alterar a retenção de auditoria (`deletedTasksRetentionDays`), transferir a posse ou excluir a organização.
+- **Numeração Sequencial Monotônica:** Cada tarefa recebe um número sequencial único dentro de sua organização (`1 - Nome da Task`), mantido por incremento atômico no banco, que jamais se repete ou é reciclado.
+- As Tarefas (`TaskEntity`) pertencem obrigatoriamente a uma Organização, garantindo isolamento estrito entre equipes e mitigação efetiva de BOLA/IDOR (Broken Object Level Authorization), validada por suíte de testes de integração.
 
 ## Just-In-Time (JIT) Provisioning
-Para manter a sincronia com o Keycloak sem rotinas manuais, a API utiliza JIT Provisioning no `UserProvisioningFilter`. Ao autenticar, os dados do token (Keycloak UUID, e-mail, nome) são espelhados automaticamente no PostgreSQL. Alterações de nome e e-mail feitas no console de conta do Keycloak também são sincronizadas em tempo real via `GET /user/me`.
+Para manter a sincronia com o Keycloak sem rotinas manuais, a API utiliza JIT Provisioning no `UserProvisioningFilter`:
+- Ao autenticar com um JWT válido (`aud=taskflow-api`), o filtro exige que o token possua e-mail válido e verificado (`email_verified=true` quando aplicável na vinculação por e-mail).
+- A vinculação automática de conta pré-existente por e-mail (case-insensitive) só ocorre quando o registro local ainda não possui `keycloakId` (`keycloakId == null`); em caso de colisão com outro usuário já vinculado, a API responde com `409 Conflict` (RFC 9457 `ProblemDetail`).
+- Alterações de nome e e-mail verificado feitas no Console de Conta do Keycloak também são sincronizadas via `GET /user/me`.
 
 # Como executar a aplicação via Docker (Linux)
-Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisitos instalados na sua máquina:
-* **Docker, Docker Compose, Docker Desktop**
+Pré-requisitos:
+* **Docker e Docker Compose V2**
 * **Make**
-* Use a IDE **IntelliJ IDEA** para visualizar o backend.
+* IDE (como **IntelliJ IDEA**) ou **Java 21** para desenvolvimento no host
 
-### Passo a passo para execução no Linux:
+### Comandos de Orquestração (`Makefile` — Desenvolvimento)
+O `Makefile` gerencia o ambiente de desenvolvimento definido em `docker-compose.dev.yml`:
+* `make run-dev`: Sobe todo o ambiente de desenvolvimento em containers (Bancos, Keycloak, Mailpit, PgAdmin e API).
+* `make run-dev-infra`: Sobe Keycloak, Mailpit e PgAdmin (útil quando os bancos já estão rodando em separado).
+* `make run-dev-infra-db`: Sobe os bancos (`db`, `keycloak_db`) e todas as ferramentas de infraestrutura (`keycloak`, `mailpit`, `pgadmin`) **sem a API**, ideal para rodar a API Spring Boot direto na IDE com Hot Reload.
+* `make down`: Desliga os containers de desenvolvimento preservando os dados em volumes.
+* `make down-db-all-dev`: Derruba todo o ambiente de desenvolvimento e apaga os volumes dos bancos.
+* `make down-db-api-dev`: Apaga somente o container e o volume do banco da API de dev.
+* `make down-db-keycloak-dev`: Apaga somente o container e o volume do banco do Keycloak de dev.
+* `make logs-dev`: Acompanha os logs do ambiente de desenvolvimento em tempo real.
+* `make clean-dev`: Remove containers e imagens de desenvolvimento.
+* `make terminal-dev`: Abre um shell `bash` dentro do container `taskflow_api`.
+* `make test`: Executa `./mvnw test`.
 
-1. **Clone o repositório:**
-   Clone o repositório do backend seja usando terminal ou baixando o arquivo ZIP.
+> **Nota sobre Produção:** O ambiente de produção é definido em `deploy/docker-compose.prod.yml` e implantado via pipeline GitHub Actions (`.github/workflows/ci-cd.yml`) + scripts em `deploy/scripts/`, com Keycloak 26 em modo `--optimized`, banco único PostgreSQL 16 com papéis de privilégio mínimo e Cloudflare Tunnel.
 
-2. **Acesse a pasta do projeto pelo terminal:**
+# Como executar a aplicação manualmente (Sem container da API)
+
+1. Suba os bancos e o Keycloak de dev com:
    ```bash
-   cd taskflow-backend-api
+   make run-dev-infra-db
    ```
-   
-3. **Garantia de acesso:**
-   Garanta que o Docker tenha acesso de administrador na máquina para não ser necessário usar sudo.
-
-4. **Env configurado:**
-   Tenha o arquivo .env devidamente configurado como nos tópicos anteriores.
-
-5. **Comandos de Orquestração (Makefile):**
-   O projeto utiliza um `Makefile` unificado para gerenciar separadamente os ambientes de Desenvolvimento e Produção. No Windows, você pode rodar os mesmos comandos se tiver o WSL ou ferramentas como Git Bash / Make for Windows instalados. Caso não tenha, os comandos brutos do Docker Compose estão comentados no próprio arquivo `Makefile`.
-
-   ### Ambiente de Desenvolvimento (Sufixo `-dev`)
-   Ideal para programar localmente. Sobe o Banco, Keycloak, PgAdmin e Mailpit com portas expostas.
-   * `make run-dev`: Sobe todo o ambiente de desenvolvimento.
-   * `make run-dev-infra`: Sobe apenas os bancos e ferramentas (Sem a API Java). Use isso para poder rodar o Java direto na IDE (IntelliJ) e aproveitar o Hot Reload.
-   * `make down-db-all-dev`: Destrói todos os containers e apaga todos os bancos de dados de Dev.
-   * `make down-db-api-dev`: Apaga somente o banco da API.
-   * `make down-db-keycloak-dev`: Apaga somente o banco do Keycloak.
-   * `make logs-dev`: Acompanha os logs em tempo real.
-   * `make clean-dev`: Remove containers e imagens de desenvolvimento.
-
-   ### Ambiente de Produção (Sem sufixo)
-   Sobe a arquitetura blindada. O Keycloak roda em modo otimizado, bancos sem portas externas, pronto para o Cloudflare Tunnel.
-   * `make run`: Sobe todo o ambiente de produção.
-   * `make down`: Desliga o ambiente (mantendo os dados).
-   * `make down-db-all`: Destrói todos os containers e apaga todos os bancos de Prod.
-   * `make down-db-api`: Apaga somente o banco da API de Prod.
-   * `make down-db-keycloak`: Apaga somente o banco do Keycloak de Prod.
-   * `make logs`: Acompanha os logs em tempo real.
-   * `make clean`: Remove containers e imagens de produção.
-
-# Como executar a aplicação manualmente
-
-Para rodar o projeto localmente, certifique-se de ter os seguintes pré-requisitos instalados na sua máquina:
-* **Java 21 +**
-* **PostgreSQL** (rodando na porta padrão 5432 senão tera que alterar a porta na url)
-* Use a IDE **IntelliJ IDEA** para rodar o projeto e gerenciar as variáveis de ambiente.
-
-### Passo a passo para execução manual:
-
-1. **Clone o repositório:**
-   Clone o repositório do backend seja usando terminal ou baixando o arquivo ZIP.
-
-2. **Acesse a pasta do projeto pelo terminal:**
-   ```bash
-   cd taskflow-backend-api
-   ```
-
-3. **Crie o banco de dados:**
-   Acesse o painel do postgress, use algo como o pgAdmin ou o psql no terminal e crie um banco de dados vazio com o mesmo nome que você definiu nas variáveis de ambiente (ex: `taskflow_db`).
-   > **Nota:** Não é necessário criar as tabelas manualmente. O **Flyway** cuida das migrations das tabelas.
-
-4. **Configure as Variáveis de Ambiente:**
-   Siga as instruções da seção `Configuração do .env` acima para garantir que a aplicação consiga se conectar ao banco de dados e ao frontend.
-
-5. **Inicie a aplicação:**
-    * **Via Terminal (Linux):**
-      ```bash
-      ./mvnw spring-boot:run
-      ```
-    * **Via Terminal (Windows):**
-      ```cmd
-      mvnw.cmd spring-boot:run
-      ```
-    * **Via IDE:** Localize a classe `ApiTaskflowApplication.java` no caminho `src/main/java/unievangelica/taskflow/api/` e rode a classe.
-
+   *(Ou aponte o `.env` para uma instância PostgreSQL 16 local na porta `5432` e crie o banco vazio; o Flyway aplica todas as migrations `V1`–`V13` automaticamente.)*
+2. Configure o arquivo `.env` na raiz conforme o tópico **Configuração do `.env` para Desenvolvimento**.
+3. Inicie a aplicação com Java 21:
+   * **Via Terminal (Linux):**
+     ```bash
+     ./mvnw spring-boot:run
+     ```
+   * **Via Terminal (Windows):**
+     ```cmd
+     mvnw.cmd spring-boot:run
+     ```
+   * **Via IDE:** Carregue o `.env` nas variáveis de ambiente da configuração de execução da classe `ApiTaskflowApplication.java`.
 
 # Acessos Locais (Ambiente de Desenvolvimento)
-Após executar `make run-dev` (ou `make run-dev-infra`), os seguintes serviços estarão disponíveis no seu navegador:
+Após executar `make run-dev` ou `make run-dev-infra-db`, os seguintes serviços estarão disponíveis:
+* **Keycloak (Painel Admin):** `http://localhost:9090` (usuário: `admin` | senha: `admin`)
+* **Mailpit (Caixa de E-mails para Testes):** `http://localhost:8025` (captura e-mails de confirmação de conta, recuperação de senha e convites)
+* **pgAdmin (Gerenciador de Banco de Dados):** `http://localhost:5050` (`admin@taskflow.com` | `admin`)
+* **API Spring Boot:** `http://localhost:8080`
 
-* **Keycloak (Painel Admin):** [http://localhost:9090](http://localhost:9090)
-    * *Usuário padrão:* `admin` | *Senha:* `admin`
-* **Mailpit (Caixa de E-mails para Testes):** [http://localhost:8025](http://localhost:8025)
-    * *Não exige senha. Captura em tempo real os e-mails de confirmação de conta (`Verify Email`), recuperação de senha e convites para organizações.*
-* **pgAdmin (Gerenciador de Banco de Dados):** [http://localhost:5050](http://localhost:5050)
-    * *E-mail:* `admin@taskflow.com` | *Senha:* `admin`
-    * *(Para conectar ao banco lá dentro, use o host `db` e a porta `5432`)*
-* **API Spring Boot:** [http://localhost:8080](http://localhost:8080)
+# Como executar Testes Automatizados
 
+O projeto possui:
+* **Testes Unitários (`unit/`):** JUnit 5, Mockito, AssertJ, MockMvc e Spring Security Test cobrindo regras de negócio, controllers, segurança JWT/audiência/JIT, `ProblemDetail`, e-mails assíncronos e expurgo agendado.
+* **Testes de Integração (`integration/`):** Executados contra **PostgreSQL 16 real via Testcontainers**, validando isolamento multi-tenant (matriz BOLA), migrações Flyway (`V1`–`V13`), privilégio mínimo, avatares e expiração de convites.
 
-# Como executar Testes Unitários
-
-O projeto utiliza **JUnit 5**, **Mockito** e **AssertJ** para a cobertura de testes unitários, focando em garantir a integridade das regras de negócio (camada de *Service*) de forma isolada, sem a necessidade de instanciar o banco de dados.
-
-### 1. Via Makefile (Linux)
-Na raiz do projeto, sem estar executando o backend e nenhum container execute:
+### Via Terminal (Maven Wrapper — JDK 21)
+* **Somente unitários (Linux):**
+  ```bash
+  ./mvnw test
+  ```
+* **Suíte completa — unitários + integração Testcontainers (requer Docker ativo):**
+  ```bash
+  ./mvnw clean verify
+  ```
+* **Via Makefile (Linux):**
   ```bash
   make test
   ```
 
-### 2. Via Terminal (Maven Wrapper)
-Esta é a forma recomendada para validar todo o projeto de uma vez (muito útil para pipelines de CI/CD). Na raiz do projeto, execute:
-
-* **Linux:**
-  ```bash
-  ./mvnw test
-  ```
-
-* **Windows:**
-  ```cmd
-  mvnw.cmd test
-  ```
-
 # Documentação da API (Swagger)
-
-A API possui sua documentação gerada dinamicamente através do **Swagger UI** (OpenAPI 3). Nele, você pode visualizar todos os endpoints disponíveis, seus métodos, esquemas de requisição/resposta, validações e testar as requisições diretamente do navegador.
-
-### Como acessar o Swagger:
-1. Certifique-se de que a aplicação Spring Boot (backend) esteja rodando na sua máquina.
-2. Acesse a seguinte URL no seu navegador:
-   [http://localhost:8080/swagger-ui/index.html](http://localhost:8080/swagger-ui/index.html)
-
-### Como realizar requisições autenticadas no Swagger:
-A API está perfeitamente integrada ao Keycloak. Você não precisa gerar o token manualmente e colar. Para testar as rotas fechadas:
-1. Clique no botão **Authorize** (geralmente com um ícone de cadeado) no canto superior direito da tela do Swagger.
-2. Na janela modal que abrir, role para baixo até a opção **OAuth2**.
-3. Deixe o client_id como `taskflow-frontend` e clique em **Authorize**.
-4. Você será redirecionado automaticamente para a tela de login do Keycloak. Faça login com suas credenciais.
-5. Após o login, você será redirecionado de volta para o Swagger já autenticado. A partir desse momento, basta clicar em **"Try it out"** nas rotas e o Swagger injetará o token automaticamente.
-
-*Nota:* Se houver erro de "Invalid redirect_uri", verifique se configurou a URL `http://localhost:8080/*` nos *Valid Redirect URIs* do Client `taskflow-frontend` no painel de administração do Keycloak, ou se iniciou um banco do zero após a última atualização do arquivo `realm-export.json`.
+Em ambiente de desenvolvimento, a API gera sua documentação OpenAPI 3 no **Swagger UI** em `http://localhost:8080/swagger-ui/index.html`.
+1. Clique em **Authorize** no canto superior direito.
+2. Em **OAuth2**, mantenha o `client_id` como `taskflow-frontend` e clique em **Authorize**.
+3. Autentique-se no Keycloak para que o Swagger passe a injetar automaticamente o token JWT com audiência `taskflow-api` nas requisições de teste.
