@@ -14,8 +14,7 @@
          seguem o destino indicado pelo Keycloak, como no tema base. -->
     <#assign isEmailVerified = false>
     <#if message?has_content && message.summary?has_content>
-        <#assign summaryLower = message.summary?lower_case>
-        <#if message.summary == msg("emailVerifiedMessage") || summaryLower?contains("verificado") || summaryLower?contains("verified")>
+        <#if message.summary == msg("emailVerifiedMessage") || message.summary == msg("emailVerifiedAlreadyMessage")>
             <#assign isEmailVerified = true>
         </#if>
     </#if>
@@ -27,8 +26,6 @@
         <#assign candidateUrl = actionUri>
     <#elseif (client.baseUrl)?has_content>
         <#assign candidateUrl = client.baseUrl>
-    <#elseif (client.rootUrl)?has_content>
-        <#assign candidateUrl = client.rootUrl>
     <#else>
         <#assign candidateUrl = url.loginUrl>
     </#if>
@@ -125,41 +122,44 @@
             }
 
             // 2. Resolução dinâmica do destino SEM mockar nem fixar IP/porta/domínio
-            function resolveDynamicDestination() {
-                var candidate = "${candidateUrl}";
-                var loginUrl = "${url.loginUrl}";
+            function safeHttpOrigin(rawUrl) {
+                if (!rawUrl || String(rawUrl).trim() === "") return null;
+                try {
+                    var parsed = new URL(rawUrl, window.location.origin);
+                    if ((parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin && parsed.origin !== "null") {
+                        return parsed.origin;
+                    }
+                } catch (_e) {}
+                return null;
+            }
 
-                // Tenta extrair a origem a partir do parametro redirect_uri da URL atual
+            function resolveDynamicDestination() {
+                var candidate = "${candidateUrl?js_string}";
+                var loginUrl = "${url.loginUrl?js_string}";
+                var candidateOrigin = safeHttpOrigin(candidate);
+                var hasExternalCandidate = Boolean(candidateOrigin && candidateOrigin !== window.location.origin);
+
+                // Prioriza redirect_uri somente se compatível com a origem conhecida do cliente (evita open redirect)
                 try {
                     var urlParams = new URLSearchParams(window.location.search);
-                    var redirectParam = urlParams.get("redirect_uri");
-                    if (redirectParam) {
-                        var parsedRedirect = new URL(redirectParam, window.location.origin);
-                        if (parsedRedirect.origin && parsedRedirect.origin !== "null") {
-                            return parsedRedirect.origin + "/?start_login=1&verified=1";
+                    var redirectOrigin = safeHttpOrigin(urlParams.get("redirect_uri"));
+                    if (redirectOrigin && redirectOrigin !== window.location.origin) {
+                        if (!hasExternalCandidate || redirectOrigin === candidateOrigin) {
+                            return redirectOrigin + "/?start_login=1&verified=1";
                         }
                     }
                 } catch (_e) {}
 
-                // Tenta extrair a partir da URL candidata do Keycloak (pageRedirectUri ou client.baseUrl)
-                if (candidate && candidate.trim() !== "") {
-                    try {
-                        var parsedCandidate = new URL(candidate, window.location.origin);
-                        if (parsedCandidate.origin && parsedCandidate.origin !== "null" && parsedCandidate.origin !== window.location.origin) {
-                            return parsedCandidate.origin + "/?start_login=1&verified=1";
-                        }
-                    } catch (_e) {}
+                // Origem vinda de pageRedirectUri ou client.baseUrl (mais confiável ao abrir o link via webmail/Mailpit)
+                if (hasExternalCandidate) {
+                    return candidateOrigin + "/?start_login=1&verified=1";
                 }
 
-                // Tenta extrair da origem de document.referrer (se veio do frontend)
-                try {
-                    if (document.referrer) {
-                        var parsedRef = new URL(document.referrer);
-                        if (parsedRef.origin && parsedRef.origin !== "null" && parsedRef.origin !== window.location.origin) {
-                            return parsedRef.origin + "/?start_login=1&verified=1";
-                        }
-                    }
-                } catch (_e) {}
+                // Fallback via document.referrer apenas quando não há origem configurada do cliente
+                var refOrigin = safeHttpOrigin(document.referrer);
+                if (refOrigin && refOrigin !== window.location.origin) {
+                    return refOrigin + "/?start_login=1&verified=1";
+                }
 
                 // Fallback dinâmico: URL nativa de login do Keycloak neste servidor
                 return loginUrl || "/";
