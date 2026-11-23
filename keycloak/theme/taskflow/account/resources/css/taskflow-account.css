@@ -17,6 +17,10 @@
   --pf-v5-global--active-color--100: var(--tf-primary);
   --pf-v5-global--FontFamily--sans-serif: 'Inter', 'Segoe UI', Roboto, sans-serif;
   --pf-v5-global--FontFamily--heading--sans-serif: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  /* Texto sempre escuro sobre os cartões brancos (o modo escuro do sistema clareava o texto) */
+  --pf-v5-global--Color--100: #111827;
+  --pf-v5-global--Color--200: #374151;
+  color-scheme: light;
 
   /* PatternFly 4 fallback */
   --pf-global--primary-color--100: var(--tf-primary);
@@ -232,4 +236,15 @@ body {
 .pf-c-jump-links,
 .pf-l-grid__item:has(.pf-c-jump-links) {
   display: none !important;
+}
+
+/* ---------- Legibilidade: textos descritivos em preto ---------- */
+.pf-v5-c-page__main-section,
+.pf-v5-c-page__main-section p,
+.pf-v5-c-page__main-section .pf-v5-c-content,
+.pf-v5-c-page__main-section .pf-v5-c-helper-text,
+.pf-v5-c-page__main-section .pf-v5-c-data-list,
+.pf-v5-c-page__main-section .pf-v5-c-form__label,
+.pf-v5-c-page__main-section .pf-v5-c-description-list__text {
+  color: #111827 !important;
 }

@@ -131,7 +131,19 @@
     });
   }
 
+  // O Keycloak 26 aplica "pf-v5-theme-dark" quando o sistema está em modo escuro, mas o tema
+  // TaskFlow usa cartões brancos: o texto claro do PatternFly ficaria ilegível. Mantém sempre o tema claro.
+  function forcarTemaClaro() {
+    var html = document.documentElement;
+    var remover = function () {
+      if (html.classList.contains('pf-v5-theme-dark')) html.classList.remove('pf-v5-theme-dark');
+    };
+    remover();
+    new MutationObserver(remover).observe(html, { attributes: true, attributeFilter: ['class'] });
+  }
+
   // Executa antes do React iniciar, para que ele já carregue a rota correta.
+  forcarTemaClaro();
   protegerRota();
   envolverHistoryApi();
   document.documentElement.setAttribute('lang', 'pt-BR');
