@@ -108,20 +108,7 @@
     <#if isEmailVerified>
     <script>
         (function() {
-            // 1. Limpeza estrita de sessão para garantir: "validar sem logar"
-            try {
-                var cookies = ["KEYCLOAK_SESSION", "KEYCLOAK_SESSION_LEGACY", "KEYCLOAK_IDENTITY", "KEYCLOAK_IDENTITY_LEGACY", "KC_RESTART"];
-                var paths = ["/", window.location.pathname];
-                for (var i = 0; i < cookies.length; i++) {
-                    for (var p = 0; p < paths.length; p++) {
-                        document.cookie = cookies[i] + "=; Path=" + paths[p] + "; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-                    }
-                }
-            } catch (e) {
-                console.warn("Erro ao limpar cookies de sessão:", e);
-            }
-
-            // 2. Resolução dinâmica do destino SEM mockar nem fixar IP/porta/domínio
+            // 1. Resolução dinâmica do destino SEM mockar nem fixar IP/porta/domínio
             function safeHttpOrigin(rawUrl) {
                 if (!rawUrl || String(rawUrl).trim() === "") return null;
                 try {
@@ -171,7 +158,7 @@
                 actionBtn.href = targetUrl;
             }
 
-            // 3. Controle da contagem regressiva e opção de pausar
+            // 2. Controle da contagem regressiva e opção de pausar
             var timeLeft = 5;
             var isPaused = false;
             var countdownEl = document.getElementById("countdown");
