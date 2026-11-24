@@ -6,8 +6,6 @@ package unievangelica.taskflow.api.dto.request;
  * Um campo {@code email} enviado no corpo é ignorado.
  */
 public record UserRequestDTO(
-        String nome,
-        String senha,
-        String cargo
+        String nome
 ) {
 }

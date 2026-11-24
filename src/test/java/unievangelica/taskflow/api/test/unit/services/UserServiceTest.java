@@ -118,7 +118,7 @@ public class UserServiceTest {
         userMock.setEmail("atual@test.com");
         when(userRepository.userFindById(1L)).thenReturn(Optional.of(userMock));
 
-        UserResponseDTO resposta = userService.atualizarUsuario(1L, new UserRequestDTO("Nome Novo", null, null));
+        UserResponseDTO resposta = userService.atualizarUsuario(1L, new UserRequestDTO("Nome Novo"));
 
         verify(userRepository).updateUser(1L, "Nome Novo", "atual@test.com");
         assertEquals("atual@test.com", resposta.email());

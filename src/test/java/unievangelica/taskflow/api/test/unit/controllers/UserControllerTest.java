@@ -112,16 +112,16 @@ public class UserControllerTest {
     }
 
     @Test
-    @DisplayName("PUT /user/{id} ignora o campo email do corpo: só o nome chega ao serviço")
-    void atualizacaoDePerfilIgnoraEmail() throws Exception {
+    @DisplayName("PUT /user/{id} ignora email, senha e cargo do corpo: só o nome chega ao serviço")
+    void atualizacaoDePerfilIgnoraCamposNaoEditaveis() throws Exception {
         when(userService.buscarPorKeycloakId("keycloak-id-123")).thenReturn(mockUser);
 
         mockMvc.perform(put("/user/1")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"nome\":\"Novo Nome\",\"email\":\"vitima@exemplo.com\"}"))
+                        .content("{\"nome\":\"Novo Nome\",\"email\":\"vitima@exemplo.com\",\"senha\":\"x\",\"cargo\":\"OWNER\"}"))
                 .andExpect(status().isOk());
 
-        verify(userService).atualizarUsuario(1L, new UserRequestDTO("Novo Nome", null, null));
+        verify(userService).atualizarUsuario(1L, new UserRequestDTO("Novo Nome"));
     }
 
     @Test
