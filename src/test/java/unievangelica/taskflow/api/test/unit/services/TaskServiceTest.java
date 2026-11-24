@@ -352,6 +352,86 @@ public class TaskServiceTest {
         assertThat(histCaptor.getValue().getNewValue()).isEqualTo("Sem prazo");
     }
 
+    private TaskEntity tarefaParaEditarTitulo(UserEntity user, OrganizationRole papel) {
+        TaskEntity task = new TaskEntity();
+        task.setId(78L);
+        task.setTitulo("Título Antigo");
+        task.setDescricao("Descrição");
+        task.setStatus(TaskEntity.Status.pendente);
+        task.setPrioridade(TaskEntity.Prioridade.baixa);
+        task.setOrganization(buildOrgWithMember(10L, user, papel));
+        task.setCriador(user);
+        task.setResponsaveis(List.of());
+        when(taskRepository.findTaskById(78L)).thenReturn(Optional.of(task));
+        return task;
+    }
+
+    private static TaskRequestDTO edicaoDeTitulo(String titulo) {
+        return new TaskRequestDTO(titulo, "Descrição", "pendente", "baixa", null, null, 10L);
+    }
+
+    @Test
+    @DisplayName("Edição com título vazio, só com espaços ou acima de 255 caracteres é recusada sem gravar nada")
+    void testarAtualizarTaskRecusaTituloInvalido() {
+        UserEntity owner = usuario(1L);
+        TaskEntity task = tarefaParaEditarTitulo(owner, OrganizationRole.OWNER);
+
+        for (String titulo : List.of("", "   ", "a".repeat(256))) {
+            assertThrows(BusinessException.class,
+                    () -> taskService.atualizarTask(78L, edicaoDeTitulo(titulo), owner));
+        }
+
+        assertThat(task.getTitulo()).isEqualTo("Título Antigo");
+        verify(taskRepository, never()).save(any());
+        verify(taskHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Edição aceita título com exatamente 255 caracteres")
+    void testarAtualizarTaskAceitaTituloNoLimite() {
+        UserEntity owner = usuario(1L);
+        TaskEntity task = tarefaParaEditarTitulo(owner, OrganizationRole.OWNER);
+
+        taskService.atualizarTask(78L, edicaoDeTitulo("a".repeat(255)), owner);
+
+        assertThat(task.getTitulo()).hasSize(255);
+    }
+
+    @Test
+    @DisplayName("Edição sem título (null) mantém o título atual")
+    void testarAtualizarTaskSemTituloMantemAtual() {
+        UserEntity owner = usuario(1L);
+        TaskEntity task = tarefaParaEditarTitulo(owner, OrganizationRole.OWNER);
+
+        taskService.atualizarTask(78L, edicaoDeTitulo(null), owner);
+
+        assertThat(task.getTitulo()).isEqualTo("Título Antigo");
+        verify(taskHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tarefa antiga com título inválido ainda pode ter outros campos editados")
+    void testarAtualizarTaskComTituloLegadoInvalido() {
+        UserEntity owner = usuario(1L);
+        TaskEntity task = tarefaParaEditarTitulo(owner, OrganizationRole.OWNER);
+        task.setTitulo("   ");
+
+        taskService.atualizarTask(78L,
+                new TaskRequestDTO("   ", "Nova descrição", "pendente", "baixa", null, null, 10L), owner);
+
+        assertThat(task.getDescricao()).isEqualTo("Nova descrição");
+    }
+
+    @Test
+    @DisplayName("Sem permissão de edição, título inválido continua respondendo acesso negado")
+    void testarAtualizarTaskPermissaoAntesDoTitulo() {
+        UserEntity member = usuario(2L);
+        tarefaParaEditarTitulo(member, OrganizationRole.MEMBER);
+
+        assertThrows(SecurityException.class,
+                () -> taskService.atualizarTask(78L, edicaoDeTitulo("   "), member));
+    }
+
     @Test
     @DisplayName("Deve registrar eventos granulares no histórico ao alterar título, prioridade e descrição")
     void testarAtualizarTaskHistoricoGranular() {

@@ -106,12 +106,7 @@ public class TaskService {
         OrganizationEntity organization = organizationRepository.findById(orgId)
             .orElseThrow(() -> new ResourceNotFoundException("Organização não encontrada."));
 
-        if (data.titulo() == null || data.titulo().trim().isEmpty()) {
-            throw new BusinessException("O título da tarefa é obrigatório.");
-        }
-        if (data.titulo().length() > 255) {
-            throw new BusinessException("O título da tarefa deve ter no máximo 255 caracteres.");
-        }
+        validarTitulo(data.titulo());
 
         TaskEntity novaTarefa = new TaskEntity();
         novaTarefa.setTitulo(data.titulo());
@@ -156,6 +151,15 @@ public class TaskService {
         salvarHistorico(taskLocal, criadorLogado, "CREATED", null, taskLocal.getTitulo());
 
         return converterParaDTO(taskLocal);
+    }
+
+    private static void validarTitulo(String titulo) {
+        if (titulo == null || titulo.trim().isEmpty()) {
+            throw new BusinessException("O título da tarefa é obrigatório.");
+        }
+        if (titulo.length() > 255) {
+            throw new BusinessException("O título da tarefa deve ter no máximo 255 caracteres.");
+        }
     }
 
     private static boolean isAboveMember(OrganizationRole papel) {
@@ -212,6 +216,11 @@ public class TaskService {
             if (!canEdit) {
                 throw new SecurityException("Você não tem permissão para alterar esta tarefa.");
             }
+        }
+
+        // Só quando muda: tarefas antigas com título inválido ainda podem ter outros campos editados
+        if (titleChanged) {
+            validarTitulo(data.titulo());
         }
 
         // 1. Prazo (com validação de permissão CHANGE_DEADLINE)
@@ -286,7 +295,7 @@ public class TaskService {
         }
 
         // 4. Título
-        if (data.titulo() != null && !Objects.equals(oldTitle, data.titulo())) {
+        if (titleChanged) {
             taskLocal.setTitulo(data.titulo());
             salvarHistorico(taskLocal, userLogado, "EDITED_TITLE", oldTitle, data.titulo());
         }
