@@ -17,15 +17,22 @@ import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
 import unievangelica.taskflow.api.controllers.UserController;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.entities.UserAvatarEntity;
 import unievangelica.taskflow.api.domain.service.UserService;
+import unievangelica.taskflow.api.dto.request.UserRequestDTO;
 
-import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -85,15 +92,71 @@ public class UserControllerTest {
     }
 
     @Test
-    @DisplayName("Deve listar todos os usuários (GET /user)")
-    void testListarTodos() throws Exception {
-        unievangelica.taskflow.api.dto.response.UserResponseDTO responseDTO = new unievangelica.taskflow.api.dto.response.UserResponseDTO(1L, "User Test", "test@test.com", "MEMBER");
-        when(userService.listarUsuarios()).thenReturn(List.of(responseDTO));
-
+    @DisplayName("GET /user não deve existir: não há listagem global de usuários e e-mails")
+    void listagemGlobalDeUsuariosNaoExiste() throws Exception {
         mockMvc.perform(get("/user"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].nome").value("User Test"));
+                .andExpect(status().isNotFound());
 
-        verify(userService, times(1)).listarUsuarios();
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    @DisplayName("POST /user não deve existir: usuários são criados pelo provisionamento a partir do Keycloak")
+    void criacaoManualDeUsuarioNaoExiste() throws Exception {
+        mockMvc.perform(post("/user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Fantasma\",\"email\":\"vitima@exemplo.com\"}"))
+                .andExpect(status().isNotFound());
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    @DisplayName("PUT /user/{id} ignora email, senha e cargo do corpo: só o nome chega ao serviço")
+    void atualizacaoDePerfilIgnoraCamposNaoEditaveis() throws Exception {
+        when(userService.buscarPorKeycloakId("keycloak-id-123")).thenReturn(mockUser);
+
+        mockMvc.perform(put("/user/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"nome\":\"Novo Nome\",\"email\":\"vitima@exemplo.com\",\"senha\":\"x\",\"cargo\":\"OWNER\"}"))
+                .andExpect(status().isOk());
+
+        verify(userService).atualizarUsuario(1L, new UserRequestDTO("Novo Nome"));
+    }
+
+    @Test
+    @DisplayName("GET /user/me repassa email_verified=false: o e-mail não verificado não é sincronizado")
+    void perfilRepassaEmailNaoVerificado() throws Exception {
+        when(mockJwt.getClaimAsString("name")).thenReturn("User Test");
+        when(mockJwt.getClaimAsString("email")).thenReturn("vitima@exemplo.com");
+        when(mockJwt.getClaimAsBoolean("email_verified")).thenReturn(false);
+        when(userService.buscarPorKeycloakId("keycloak-id-123")).thenReturn(mockUser);
+
+        mockMvc.perform(get("/user/me")).andExpect(status().isOk());
+
+        verify(userService).sincronizarPerfilKeycloak(mockUser, "User Test", "vitima@exemplo.com", false);
+    }
+
+    @Test
+    @DisplayName("GET /user/{id}/avatar repassa o solicitante (sub do token) para a checagem de acesso")
+    void avatarUsaOSolicitanteDoToken() throws Exception {
+        when(userService.buscarAvatar(5L, "keycloak-id-123")).thenReturn(Optional.of(
+                new UserAvatarEntity(5L, new byte[]{1, 2, 3}, "image/png", LocalDateTime.now())));
+
+        mockMvc.perform(get("/user/5/avatar"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/png"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(content().bytes(new byte[]{1, 2, 3}));
+
+        verify(userService, never()).buscarPorId(any());
+    }
+
+    @Test
+    @DisplayName("GET /user/{id}/avatar responde 404 sem corpo quando o usuário não tem avatar")
+    void avatarInexistente() throws Exception {
+        when(userService.buscarAvatar(5L, "keycloak-id-123")).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/user/5/avatar")).andExpect(status().isNotFound());
     }
 }

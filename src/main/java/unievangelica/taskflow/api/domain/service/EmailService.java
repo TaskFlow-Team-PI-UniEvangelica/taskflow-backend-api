@@ -4,6 +4,7 @@ import freemarker.template.Configuration;
 import freemarker.template.Template;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -12,6 +13,7 @@ import org.springframework.ui.freemarker.FreeMarkerTemplateUtils;
 
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -22,6 +24,9 @@ public class EmailService {
     @Value("${api.cors.frontend.url:http://localhost}")
     private String frontendUrl;
 
+    @Value("${app.mail.from:nao-responda@taskflow.party}")
+    private String mailFrom;
+
     public void sendInviteEmail(String to, String inviterName, String organizationName) {
         try {
             MimeMessage message = javaMailSender.createMimeMessage();
@@ -29,7 +34,7 @@ public class EmailService {
 
             helper.setTo(to);
             helper.setSubject("Convite para equipe no TaskFlow");
-            helper.setFrom("noreply@taskflow.com.br");
+            helper.setFrom(mailFrom);
 
             Map<String, Object> model = Map.of(
                     "inviterName", inviterName,
@@ -37,7 +42,7 @@ public class EmailService {
                     "frontendUrl", frontendUrl
             );
 
-            Template template = freemarkerConfig.getTemplate("invite.ftl");
+            Template template = freemarkerConfig.getTemplate("invite.ftlh");
             String htmlContent = FreeMarkerTemplateUtils.processTemplateIntoString(template, model);
 
             helper.setText(htmlContent, true);
@@ -45,8 +50,8 @@ public class EmailService {
             javaMailSender.send(message);
 
         } catch (Exception e) {
-            // Log error
-            e.printStackTrace();
+            // O convite ja foi persistido e continua visivel no app; a falha de envio fica registrada no log.
+            log.error("Falha ao enviar e-mail de convite para {} (organizacao '{}'): {}", to, organizationName, e.getMessage(), e);
         }
     }
 }

@@ -9,23 +9,26 @@
     <meta name="view-transition" content="same-origin">
     <script>
         (function () {
-            var LOGIN_URL = "${url.loginUrl?no_esc}";
+            var LOGIN_URL = "${url.loginUrl?js_string}";
 
             function resolveDashboardUrl() {
                 try {
                     var params = new URLSearchParams(window.location.search);
                     var redirectUri = params.get("redirect_uri");
                     if (redirectUri) {
-                        return new URL(redirectUri).origin + "/dashboard";
+                        var parsed = new URL(redirectUri);
+                        if (parsed.origin && parsed.origin !== "null") {
+                            return parsed.origin + "/dashboard";
+                        }
                     }
                     if (document.referrer) {
                         var refUrl = new URL(document.referrer);
-                        if (refUrl.origin !== window.location.origin) {
+                        if (refUrl.origin && refUrl.origin !== "null" && refUrl.origin !== window.location.origin) {
                             return refUrl.origin + "/dashboard";
                         }
                     }
                 } catch (e) {}
-                var origin = "${(client.baseUrl)!(client.rootUrl)!''}";
+                var origin = "${((client.baseUrl)!'')?js_string}";
                 return origin ? (origin + "/dashboard") : "/";
             }
 
@@ -104,6 +107,9 @@
                             <input type="text" id="username" name="username" value="${(register.formData.username!'')}" autocomplete="username" />
                         </div>
 
+                        <#-- Keycloak 26: com a verificação de e-mail ligada, a senha é definida depois que o
+                             e-mail é confirmado (passwordRequired fica indefinido e o servidor ignora a senha do formulário) -->
+                        <#if passwordRequired??>
                         <div class="input-group register-group">
                             <label for="password">Senha</label>
                             <input type="password" id="password" name="password" autocomplete="new-password" placeholder="Sua senha" required />
@@ -113,6 +119,9 @@
                             <label for="password-confirm">Confirme a senha</label>
                             <input type="password" id="password-confirm" name="password-confirm" placeholder="Confirme a senha" required />
                         </div>
+                        <#else>
+                        <p class="subtitle register-note">Depois de criar a conta, você receberá um e-mail de confirmação. Ao confirmar, você definirá a sua senha de acesso.</p>
+                        </#if>
 
                         <div class="actions">
                             <a href="${url.loginUrl}" class="cancelLink">Cancelar</a>
@@ -142,16 +151,19 @@
                     var params = new URLSearchParams(window.location.search);
                     var redirectUri = params.get("redirect_uri");
                     if (redirectUri) {
-                        return new URL(redirectUri).origin;
+                        var parsed = new URL(redirectUri);
+                        if (parsed.origin && parsed.origin !== "null") {
+                            return parsed.origin;
+                        }
                     }
                     if (document.referrer) {
                         var refUrl = new URL(document.referrer);
-                        if (refUrl.origin !== window.location.origin) {
+                        if (refUrl.origin && refUrl.origin !== "null" && refUrl.origin !== window.location.origin) {
                             return refUrl.origin;
                         }
                     }
                 } catch (e) {}
-                return "${(client.baseUrl)!(client.rootUrl)!''}" || window.location.origin;
+                return "${((client.baseUrl)!'')?js_string}" || window.location.origin;
             }
 
             // Ao clicar em "Cancelar", passa pelo frontend (:5173/?start_login=1)

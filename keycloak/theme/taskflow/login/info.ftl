@@ -9,10 +9,12 @@
     <meta name="view-transition" content="same-origin">
 </head>
 <body>
+    <#-- Só a página de "e-mail confirmado" usa o redirecionamento automático para o login do TaskFlow.
+         As demais páginas de aviso (ex.: e-mails de ação enviados pelo administrador, "conta atualizada")
+         seguem o destino indicado pelo Keycloak, como no tema base. -->
     <#assign isEmailVerified = false>
     <#if message?has_content && message.summary?has_content>
-        <#assign summaryLower = message.summary?lower_case>
-        <#if summaryLower?contains("verificado") || summaryLower?contains("verified") || summaryLower?contains("email")>
+        <#if message.summary == msg("emailVerifiedMessage") || message.summary == msg("emailVerifiedAlreadyMessage")>
             <#assign isEmailVerified = true>
         </#if>
     </#if>
@@ -24,8 +26,6 @@
         <#assign candidateUrl = actionUri>
     <#elseif (client.baseUrl)?has_content>
         <#assign candidateUrl = client.baseUrl>
-    <#elseif (client.rootUrl)?has_content>
-        <#assign candidateUrl = client.rootUrl>
     <#else>
         <#assign candidateUrl = url.loginUrl>
     </#if>
@@ -70,28 +70,25 @@
                             </div>
                         </div>
                     <#else>
-                        <!-- Mensagem informativa genérica -->
+                        <!-- Mensagem informativa genérica: o botão leva ao destino indicado pelo Keycloak (sem redirecionamento automático) -->
                         <div class="header">
                             <h2 class="title">Aviso do Sistema</h2>
                             <p id="kc-message" class="subtitle" style="margin-top: 20px; font-size: 1.1rem; color: var(--text-dark);">
-                                ${kcSanitize(message.summary)?no_esc}
+                                ${kcSanitize(message.summary)?no_esc}<#if requiredActions?has_content>: <b><#list requiredActions as reqActionItem>${kcSanitize(msg("requiredAction.${reqActionItem}"))?no_esc}<#sep>, </#list></b></#if>
                             </p>
                         </div>
 
+                        <#if !(skipLink??)>
                         <div class="actions" style="margin-top: 35px; display: flex; flex-direction: column; align-items: center; gap: 12px;">
-                            <a id="auto-redirect-btn" href="${candidateUrl}" class="btn-primary" style="text-decoration: none; padding: 12px 30px; display: inline-block;">
-                                Continuar
-                            </a>
-
-                            <div style="margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;">
-                                <span style="font-size: 0.85rem; color: #64748b;">
-                                    Redirecionando em <span id="countdown" style="font-weight: 700; color: #3b82f6;">5</span> segundos...
-                                </span>
-                                <button type="button" id="pause-btn" style="background: none; border: none; color: #64748b; font-size: 0.8rem; cursor: pointer; text-decoration: underline; padding: 4px;">
-                                    Pausar redirecionamento
-                                </button>
-                            </div>
+                            <#if pageRedirectUri?has_content>
+                                <a id="info-continue-btn" href="${pageRedirectUri}" class="btn-primary" style="text-decoration: none; padding: 12px 30px; display: inline-block;">Voltar para o TaskFlow</a>
+                            <#elseif actionUri?has_content>
+                                <a id="info-continue-btn" href="${actionUri}" class="btn-primary" style="text-decoration: none; padding: 12px 30px; display: inline-block;">Continuar</a>
+                            <#elseif (client.baseUrl)?has_content>
+                                <a id="info-continue-btn" href="${client.baseUrl}" class="btn-primary" style="text-decoration: none; padding: 12px 30px; display: inline-block;">Voltar para o TaskFlow</a>
+                            </#if>
                         </div>
+                        </#if>
                     </#if>
 
                 </div>
@@ -108,57 +105,48 @@
         </div>
     </div>
 
+    <#if isEmailVerified>
     <script>
         (function() {
-            // 1. Limpeza estrita de sessão para garantir: "validar sem logar"
-            try {
-                var cookies = ["KEYCLOAK_SESSION", "KEYCLOAK_SESSION_LEGACY", "KEYCLOAK_IDENTITY", "KEYCLOAK_IDENTITY_LEGACY", "KC_RESTART"];
-                var paths = ["/", window.location.pathname];
-                for (var i = 0; i < cookies.length; i++) {
-                    for (var p = 0; p < paths.length; p++) {
-                        document.cookie = cookies[i] + "=; Path=" + paths[p] + "; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+            // 1. Resolução dinâmica do destino SEM mockar nem fixar IP/porta/domínio
+            function safeHttpOrigin(rawUrl) {
+                if (!rawUrl || String(rawUrl).trim() === "") return null;
+                try {
+                    var parsed = new URL(rawUrl, window.location.origin);
+                    if ((parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin && parsed.origin !== "null") {
+                        return parsed.origin;
                     }
-                }
-            } catch (e) {
-                console.warn("Erro ao limpar cookies de sessão:", e);
+                } catch (_e) {}
+                return null;
             }
 
-            // 2. Resolução dinâmica do destino SEM mockar nem fixar IP/porta/domínio
             function resolveDynamicDestination() {
-                var candidate = "${candidateUrl}";
-                var loginUrl = "${url.loginUrl}";
+                var candidate = "${candidateUrl?js_string}";
+                var loginUrl = "${url.loginUrl?js_string}";
+                var candidateOrigin = safeHttpOrigin(candidate);
+                var hasExternalCandidate = Boolean(candidateOrigin && candidateOrigin !== window.location.origin);
 
-                // Tenta extrair a origem a partir do parametro redirect_uri da URL atual
+                // Prioriza redirect_uri somente se compatível com a origem conhecida do cliente (evita open redirect)
                 try {
                     var urlParams = new URLSearchParams(window.location.search);
-                    var redirectParam = urlParams.get("redirect_uri");
-                    if (redirectParam) {
-                        var parsedRedirect = new URL(redirectParam, window.location.origin);
-                        if (parsedRedirect.origin && parsedRedirect.origin !== "null") {
-                            return parsedRedirect.origin + "/?start_login=1&verified=1";
+                    var redirectOrigin = safeHttpOrigin(urlParams.get("redirect_uri"));
+                    if (redirectOrigin && redirectOrigin !== window.location.origin) {
+                        if (!hasExternalCandidate || redirectOrigin === candidateOrigin) {
+                            return redirectOrigin + "/?start_login=1&verified=1";
                         }
                     }
                 } catch (_e) {}
 
-                // Tenta extrair a partir da URL candidata do Keycloak (pageRedirectUri ou client.baseUrl)
-                if (candidate && candidate.trim() !== "") {
-                    try {
-                        var parsedCandidate = new URL(candidate, window.location.origin);
-                        if (parsedCandidate.origin && parsedCandidate.origin !== "null" && parsedCandidate.origin !== window.location.origin) {
-                            return parsedCandidate.origin + "/?start_login=1&verified=1";
-                        }
-                    } catch (_e) {}
+                // Origem vinda de pageRedirectUri ou client.baseUrl (mais confiável ao abrir o link via webmail/Mailpit)
+                if (hasExternalCandidate) {
+                    return candidateOrigin + "/?start_login=1&verified=1";
                 }
 
-                // Tenta extrair da origem de document.referrer (se veio do frontend)
-                try {
-                    if (document.referrer) {
-                        var parsedRef = new URL(document.referrer);
-                        if (parsedRef.origin && parsedRef.origin !== "null" && parsedRef.origin !== window.location.origin) {
-                            return parsedRef.origin + "/?start_login=1&verified=1";
-                        }
-                    }
-                } catch (_e) {}
+                // Fallback via document.referrer apenas quando não há origem configurada do cliente
+                var refOrigin = safeHttpOrigin(document.referrer);
+                if (refOrigin && refOrigin !== window.location.origin) {
+                    return refOrigin + "/?start_login=1&verified=1";
+                }
 
                 // Fallback dinâmico: URL nativa de login do Keycloak neste servidor
                 return loginUrl || "/";
@@ -170,7 +158,7 @@
                 actionBtn.href = targetUrl;
             }
 
-            // 3. Controle da contagem regressiva e opção de pausar
+            // 2. Controle da contagem regressiva e opção de pausar
             var timeLeft = 5;
             var isPaused = false;
             var countdownEl = document.getElementById("countdown");
@@ -196,5 +184,6 @@
             }, 1000);
         })();
     </script>
+    </#if>
 </body>
 </html>

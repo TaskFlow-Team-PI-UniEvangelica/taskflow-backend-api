@@ -1,0 +1,46 @@
+package unievangelica.taskflow.api.infra.security;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import tools.jackson.databind.json.JsonMapper;
+import unievangelica.taskflow.api.infra.exceptions.ProblemDetails;
+
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+/**
+ * Resposta 401 da API: JSON serializado (sem concatenação de strings), no mesmo formato ProblemDetail do
+ * GlobalExceptionHandler, com mensagem fixa. O motivo técnico da recusa do token fica apenas no log (DEBUG),
+ * para não expor detalhes da validação ao cliente. Inclui o cabeçalho WWW-Authenticate (RFC 6750).
+ */
+@Slf4j
+public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    static final String MENSAGEM = "Token de acesso ausente, inválido ou expirado.";
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException)
+            throws IOException {
+        log.debug("Requisição não autenticada em {} {}: {}", request.getMethod(), request.getRequestURI(),
+                authException != null ? authException.getMessage() : "sem detalhes");
+
+        // Mesmo formato do GlobalExceptionHandler: ProblemDetail (RFC 9457) + message, error e timestamp
+        Map<String, Object> body = ProblemDetails.asMap(HttpStatus.UNAUTHORIZED, MENSAGEM, request.getRequestURI());
+
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+        response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.getWriter().write(JSON.writeValueAsString(body));
+    }
+}

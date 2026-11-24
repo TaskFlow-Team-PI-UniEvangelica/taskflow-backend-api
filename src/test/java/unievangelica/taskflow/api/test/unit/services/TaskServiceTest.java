@@ -1,5 +1,6 @@
 package unievangelica.taskflow.api.test.unit.services;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -7,12 +8,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
 import unievangelica.taskflow.api.domain.persistence.entities.TaskEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.TaskHistoryEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.UserEntity;
+import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationMemberRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.TaskHistoryRepository;
 import unievangelica.taskflow.api.domain.persistence.repositories.TaskRepository;
@@ -25,7 +29,10 @@ import unievangelica.taskflow.api.dto.response.TaskResponseDTO;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -50,8 +57,46 @@ public class TaskServiceTest {
     @Mock
     private TaskHistoryRepository taskHistoryRepository;
 
+    @Mock
+    private OrganizationMemberRepository memberRepository;
+
     @InjectMocks
     private TaskService taskService;
+
+    /**
+     * "Banco" de vínculos simulado: o TaskService checa pertencimento pelo repositório (exists, findRole,
+     * countMembros). As respostas vêm das organizações registradas pelos próprios testes.
+     */
+    private final Map<Long, OrganizationEntity> organizacoes = new HashMap<>();
+
+    private OrganizationEntity registrar(OrganizationEntity org) {
+        organizacoes.put(org.getId(), org);
+        return org;
+    }
+
+    private Optional<OrganizationMemberEntity> vinculo(Long orgId, Long userId) {
+        OrganizationEntity org = organizacoes.get(orgId);
+        if (org == null || org.getMembers() == null) {
+            return Optional.empty();
+        }
+        return org.getMembers().stream()
+                .filter(m -> m.getUser() != null && userId.equals(m.getUser().getId()))
+                .findFirst();
+    }
+
+    @BeforeEach
+    void simularVinculos() {
+        lenient().when(memberRepository.existsByOrganizationIdAndUserId(anyLong(), anyLong()))
+                .thenAnswer(inv -> vinculo(inv.getArgument(0), inv.getArgument(1)).isPresent());
+        lenient().when(memberRepository.findRole(anyLong(), anyLong()))
+                .thenAnswer(inv -> vinculo(inv.getArgument(0), inv.getArgument(1)).map(OrganizationMemberEntity::getRole));
+        lenient().when(memberRepository.countMembros(anyLong(), anyCollection()))
+                .thenAnswer(inv -> {
+                    Long orgId = inv.getArgument(0);
+                    Collection<Long> ids = inv.getArgument(1);
+                    return ids.stream().filter(id -> vinculo(orgId, id).isPresent()).count();
+                });
+    }
 
     private OrganizationEntity buildOrgWithMember(Long orgId, UserEntity memberUser, OrganizationRole role) {
         OrganizationEntity org = new OrganizationEntity();
@@ -61,7 +106,7 @@ public class TaskServiceTest {
         membership.setUser(memberUser);
         membership.setRole(role);
         org.setMembers(List.of(membership));
-        return org;
+        return registrar(org);
     }
 
     @Test
@@ -80,9 +125,12 @@ public class TaskServiceTest {
         taskMock.setCriador(criador);
         taskMock.setResponsaveis(List.of());
 
-        when(taskRepository.listAllTasks()).thenReturn(List.of(taskMock));
+        UserEntity usuarioLogado = new UserEntity();
+        usuarioLogado.setId(5L);
 
-        List<TaskResponseDTO> resultado = taskService.listarTasks(null, new UserEntity());
+        when(taskRepository.listTasksByUserOrganizations(5L)).thenReturn(List.of(taskMock));
+
+        List<TaskResponseDTO> resultado = taskService.listarTasks(null, usuarioLogado);
 
         assertThat(resultado).isNotNull().hasSize(1);
         TaskResponseDTO taskRetornada = resultado.get(0);
@@ -93,7 +141,26 @@ public class TaskServiceTest {
         assertThat(taskRetornada.prioridade()).isEqualTo("media");
         assertThat(taskRetornada.nomeCriador()).isEqualTo("UnitTestServiceUser");
 
-        verify(taskRepository, times(1)).listAllTasks();
+        verify(taskRepository, times(1)).listTasksByUserOrganizations(5L);
+    }
+
+    @Test
+    @DisplayName("Deve negar listagem geral de tarefas quando o usuário não está identificado")
+    void testaListarTasksSemUsuarioIdentificadoNegaAcesso() {
+        assertThrows(SecurityException.class, () -> taskService.listarTasks(null, null));
+        assertThrows(SecurityException.class, () -> taskService.listarTasks(null, new UserEntity()));
+
+        verifyNoInteractions(taskRepository);
+    }
+
+    @Test
+    @DisplayName("Deve negar listagem de tarefas da organização quando o usuário não está identificado")
+    void testaListarTasksPorOrganizacaoSemUsuarioIdentificadoNegaAcesso() {
+        assertThrows(SecurityException.class, () -> taskService.listarTasks(100L, null));
+        assertThrows(SecurityException.class, () -> taskService.listarTasks(100L, new UserEntity()));
+
+        verifyNoInteractions(taskRepository);
+        verify(organizationRepository, never()).findById(anyLong());
     }
 
     @Test
@@ -104,16 +171,68 @@ public class TaskServiceTest {
 
         UserEntity membroReal = new UserEntity();
         membroReal.setId(1L);
-        OrganizationEntity org = buildOrgWithMember(100L, membroReal, OrganizationRole.OWNER);
+        buildOrgWithMember(100L, membroReal, OrganizationRole.OWNER);
 
-        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+        when(organizationRepository.existsById(100L)).thenReturn(true);
 
         assertThrows(SecurityException.class, () -> taskService.listarTasks(100L, intruso));
         verify(taskRepository, never()).listTasksByOrganization(anyLong());
     }
 
     @Test
-    @DisplayName("Deve criar tarefa incrementando taskNumber por organização e gravando histórico CREATED")
+    @DisplayName("Listagem de tarefas de organização inexistente responde 'não encontrada' antes da checagem de vínculo")
+    void testaListarTasksDeOrganizacaoInexistente() {
+        when(organizationRepository.existsById(404L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> taskService.listarTasks(404L, usuario(1L)));
+        verify(memberRepository, never()).existsByOrganizationIdAndUserId(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("Pertencimento é checado por consulta direta, sem carregar a lista de membros da organização")
+    void testaChecagemDePertencimentoSemListaDeMembros() {
+        UserEntity membro = usuario(2L);
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(10L);
+        org.setMembers(null); // a lista de membros não é usada
+
+        TaskEntity task = new TaskEntity();
+        task.setId(61L);
+        task.setStatus(TaskEntity.Status.pendente);
+        task.setOrganization(org);
+
+        when(taskRepository.findTaskById(61L)).thenReturn(Optional.of(task));
+        when(memberRepository.findRole(10L, 2L)).thenReturn(Optional.of(OrganizationRole.MANAGER));
+
+        taskService.atualizarStatusTask(61L, "em_andamento", membro);
+
+        verify(taskRepository).updateTaskStatus(61L, TaskEntity.Status.em_andamento);
+        // Vínculo e papel vêm de uma única consulta
+        verify(memberRepository, times(1)).findRole(10L, 2L);
+        verify(memberRepository, never()).existsByOrganizationIdAndUserId(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("Criação com responsável que existe mas não é membro da organização é recusada (contagem em uma consulta)")
+    void testarCriarTaskComResponsavelDeOutraOrganizacao() {
+        UserEntity criador = usuario(1L);
+        UserEntity deFora = usuario(50L);
+        OrganizationEntity org = buildOrgWithMember(100L, criador, OrganizationRole.OWNER);
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
+        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+        when(userRepository.userFindAllByIds(List.of(1L, 50L))).thenReturn(List.of(criador, deFora));
+
+        TaskRequestDTO dto = new TaskRequestDTO("Titulo", null, null, null, null, List.of(1L, 50L), 100L);
+
+        SecurityException ex = assertThrows(SecurityException.class, () -> taskService.criarTask(dto, criador));
+        assertThat(ex.getMessage()).isEqualTo("Um ou mais usuários não pertencem à organização.");
+        verify(memberRepository).countMembros(eq(100L), argThat(ids -> ids.containsAll(List.of(1L, 50L)) && ids.size() == 2));
+        verify(taskRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve criar tarefa com taskNumber reservado atomicamente no banco e gravar histórico CREATED")
     void testarCriarTaskSemDefinirAtributos() {
         UserEntity criador = new UserEntity();
         criador.setId(1L);
@@ -135,6 +254,7 @@ public class TaskServiceTest {
 
         when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
         when(organizationRepository.findById(100L)).thenReturn(Optional.of(orgMock));
+        when(organizationRepository.nextTaskNumber(100L)).thenReturn(5);
 
         TaskEntity taskMock = new TaskEntity();
         taskMock.setId(10L);
@@ -147,13 +267,18 @@ public class TaskServiceTest {
         taskMock.setOrganization(orgMock);
         taskMock.setResponsaveis(List.of());
 
-        when(taskRepository.save(any(TaskEntity.class))).thenReturn(taskMock);
+        ArgumentCaptor<TaskEntity> taskCaptor = ArgumentCaptor.forClass(TaskEntity.class);
+        when(taskRepository.save(taskCaptor.capture())).thenReturn(taskMock);
 
         TaskResponseDTO resultado = taskService.criarTask(requestDTO, criador);
 
         assertThat(resultado.titulo()).isEqualTo("Unit Test Service Titulo");
         assertThat(resultado.taskNumber()).isEqualTo(5);
-        assertThat(orgMock.getLastTaskNumber()).isEqualTo(5);
+        // O número vem do incremento atômico no banco; a organização não é regravada (evita sobrescrever configurações)
+        assertThat(taskCaptor.getValue().getTaskNumber()).isEqualTo(5);
+        verify(organizationRepository, times(1)).nextTaskNumber(100L);
+        verify(organizationRepository, never()).save(any());
+        assertThat(orgMock.getLastTaskNumber()).isEqualTo(4);
 
         ArgumentCaptor<TaskHistoryEntity> historyCaptor = ArgumentCaptor.forClass(TaskHistoryEntity.class);
         verify(taskHistoryRepository, times(1)).save(historyCaptor.capture());
@@ -225,6 +350,86 @@ public class TaskServiceTest {
         assertThat(histCaptor.getValue().getActionType()).isEqualTo("CHANGED_DEADLINE");
         assertThat(histCaptor.getValue().getOldValue()).isEqualTo("2026-12-31");
         assertThat(histCaptor.getValue().getNewValue()).isEqualTo("Sem prazo");
+    }
+
+    private TaskEntity tarefaParaEditarTitulo(UserEntity user, OrganizationRole papel) {
+        TaskEntity task = new TaskEntity();
+        task.setId(78L);
+        task.setTitulo("Título Antigo");
+        task.setDescricao("Descrição");
+        task.setStatus(TaskEntity.Status.pendente);
+        task.setPrioridade(TaskEntity.Prioridade.baixa);
+        task.setOrganization(buildOrgWithMember(10L, user, papel));
+        task.setCriador(user);
+        task.setResponsaveis(List.of());
+        when(taskRepository.findTaskById(78L)).thenReturn(Optional.of(task));
+        return task;
+    }
+
+    private static TaskRequestDTO edicaoDeTitulo(String titulo) {
+        return new TaskRequestDTO(titulo, "Descrição", "pendente", "baixa", null, null, 10L);
+    }
+
+    @Test
+    @DisplayName("Edição com título vazio, só com espaços ou acima de 255 caracteres é recusada sem gravar nada")
+    void testarAtualizarTaskRecusaTituloInvalido() {
+        UserEntity owner = usuario(1L);
+        TaskEntity task = tarefaParaEditarTitulo(owner, OrganizationRole.OWNER);
+
+        for (String titulo : List.of("", "   ", "a".repeat(256))) {
+            assertThrows(BusinessException.class,
+                    () -> taskService.atualizarTask(78L, edicaoDeTitulo(titulo), owner));
+        }
+
+        assertThat(task.getTitulo()).isEqualTo("Título Antigo");
+        verify(taskRepository, never()).save(any());
+        verify(taskHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Edição aceita título com exatamente 255 caracteres")
+    void testarAtualizarTaskAceitaTituloNoLimite() {
+        UserEntity owner = usuario(1L);
+        TaskEntity task = tarefaParaEditarTitulo(owner, OrganizationRole.OWNER);
+
+        taskService.atualizarTask(78L, edicaoDeTitulo("a".repeat(255)), owner);
+
+        assertThat(task.getTitulo()).hasSize(255);
+    }
+
+    @Test
+    @DisplayName("Edição sem título (null) mantém o título atual")
+    void testarAtualizarTaskSemTituloMantemAtual() {
+        UserEntity owner = usuario(1L);
+        TaskEntity task = tarefaParaEditarTitulo(owner, OrganizationRole.OWNER);
+
+        taskService.atualizarTask(78L, edicaoDeTitulo(null), owner);
+
+        assertThat(task.getTitulo()).isEqualTo("Título Antigo");
+        verify(taskHistoryRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tarefa antiga com título inválido ainda pode ter outros campos editados")
+    void testarAtualizarTaskComTituloLegadoInvalido() {
+        UserEntity owner = usuario(1L);
+        TaskEntity task = tarefaParaEditarTitulo(owner, OrganizationRole.OWNER);
+        task.setTitulo("   ");
+
+        taskService.atualizarTask(78L,
+                new TaskRequestDTO("   ", "Nova descrição", "pendente", "baixa", null, null, 10L), owner);
+
+        assertThat(task.getDescricao()).isEqualTo("Nova descrição");
+    }
+
+    @Test
+    @DisplayName("Sem permissão de edição, título inválido continua respondendo acesso negado")
+    void testarAtualizarTaskPermissaoAntesDoTitulo() {
+        UserEntity member = usuario(2L);
+        tarefaParaEditarTitulo(member, OrganizationRole.MEMBER);
+
+        assertThrows(SecurityException.class,
+                () -> taskService.atualizarTask(78L, edicaoDeTitulo("   "), member));
     }
 
     @Test
@@ -299,7 +504,7 @@ public class TaskServiceTest {
     }
 
     @Test
-    @DisplayName("Deve buscar histórico de tarefas excluídas para MANAGER aplicando retenção e bloquear para MEMBER")
+    @DisplayName("Deve buscar histórico de tarefas excluídas para MANAGER aplicando retenção, sem expurgar, e bloquear para MEMBER")
     void testarGetDeletedTasksHistoryComRetencaoERbac() {
         UserEntity manager = new UserEntity();
         manager.setId(1L);
@@ -324,6 +529,7 @@ public class TaskServiceTest {
         m2.setRole(OrganizationRole.MEMBER);
 
         org.setMembers(List.of(m1, m2));
+        registrar(org);
 
         TaskHistoryEntity deletedItem = TaskHistoryEntity.builder()
                 .id(501L)
@@ -343,12 +549,170 @@ public class TaskServiceTest {
         // MEMBER deve ser bloqueado
         assertThrows(SecurityException.class, () -> taskService.getDeletedTasksHistory(10L, member));
 
-        // MANAGER tem acesso e expurga registros antigos
+        // MANAGER tem acesso; a consulta filtra pela retenção e não expurga (o expurgo é do job agendado)
         List<TaskHistoryResponseDTO> result = taskService.getDeletedTasksHistory(10L, manager);
         assertThat(result).hasSize(1);
         assertThat(result.get(0).taskNumber()).isEqualTo(4);
         assertThat(result.get(0).taskTitle()).isEqualTo("Task Excluída #4");
-        verify(taskHistoryRepository, times(1)).deleteExpiredDeletedHistory(eq(10L), any(LocalDateTime.class));
+        verify(taskHistoryRepository, never()).deleteExpiredDeletedHistory(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Não deve reservar taskNumber quando a criação falha na validação")
+    void testarCriarTaskInvalidaNaoReservaNumero() {
+        UserEntity criador = new UserEntity();
+        criador.setId(1L);
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(100L);
+        org.setMembers(List.of());
+
+        TaskRequestDTO comResponsavelInexistente = new TaskRequestDTO(
+                "Titulo", null, null, null, null, List.of(77L), 100L);
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
+        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+        when(userRepository.userFindAllByIds(List.of(77L))).thenReturn(List.of());
+
+        assertThrows(BusinessException.class, () -> taskService.criarTask(comResponsavelInexistente, criador));
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(false);
+        assertThrows(SecurityException.class, () -> taskService.criarTask(comResponsavelInexistente, criador));
+
+        verify(organizationRepository, never()).nextTaskNumber(anyLong());
+        verify(taskRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve validar título obrigatório e limite de 255 caracteres antes de reservar taskNumber")
+    void testarCriarTaskValidaTituloAntesDeReservarNumero() {
+        UserEntity criador = usuario(1L);
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(100L);
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
+        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+
+        TaskRequestDTO tituloVazio = new TaskRequestDTO("   ", null, null, null, null, null, 100L);
+        assertThrows(BusinessException.class, () -> taskService.criarTask(tituloVazio, criador));
+
+        TaskRequestDTO tituloLongo = new TaskRequestDTO("a".repeat(256), null, null, null, null, null, 100L);
+        assertThrows(BusinessException.class, () -> taskService.criarTask(tituloLongo, criador));
+
+        verify(organizationRepository, never()).nextTaskNumber(anyLong());
+        verify(taskRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Deve lançar ResourceNotFoundException quando nextTaskNumber retornar null (organização removida em paralelo)")
+    void testarCriarTaskQuandoNextTaskNumberRetornaNull() {
+        UserEntity criador = usuario(1L);
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(100L);
+
+        when(organizationService.hasPermissionTo(criador, 100L, "CREATE_TASK")).thenReturn(true);
+        when(organizationRepository.findById(100L)).thenReturn(Optional.of(org));
+        when(organizationRepository.nextTaskNumber(100L)).thenReturn(null);
+
+        TaskRequestDTO req = new TaskRequestDTO("Titulo válido", null, null, null, null, null, 100L);
+        assertThrows(ResourceNotFoundException.class, () -> taskService.criarTask(req, criador));
+        verify(taskRepository, never()).save(any());
+    }
+
+    // --- Histórico da organização (RNE-006: excluídas só para cargos acima de MEMBER) ---
+
+    private OrganizationEntity orgComMembro(Long orgId, Integer retentionDays, UserEntity user, OrganizationRole role) {
+        OrganizationEntity org = new OrganizationEntity();
+        org.setId(orgId);
+        org.setDeletedTasksRetentionDays(retentionDays);
+        OrganizationMemberEntity membro = new OrganizationMemberEntity();
+        membro.setOrganization(org);
+        membro.setUser(user);
+        membro.setRole(role);
+        org.setMembers(List.of(membro));
+        return registrar(org);
+    }
+
+    private UserEntity usuario(Long id) {
+        UserEntity u = new UserEntity();
+        u.setId(id);
+        u.setNome("Usuário " + id);
+        return u;
+    }
+
+    @Test
+    @DisplayName("MEMBER deve receber no histórico da organização apenas eventos de tarefas existentes")
+    void testarHistoricoOrganizacaoMemberSemTarefasExcluidas() {
+        UserEntity member = usuario(2L);
+        OrganizationEntity org = orgComMembro(10L, 7, member, OrganizationRole.MEMBER);
+        TaskEntity existente = new TaskEntity();
+        existente.setId(100L);
+        existente.setTitulo("Tarefa ativa");
+        TaskHistoryEntity evento = TaskHistoryEntity.builder()
+                .id(1L).organization(org).task(existente).taskTitle("Tarefa ativa")
+                .user(member).actionType("CREATED").timestamp(LocalDateTime.now()).build();
+
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(org));
+        when(taskHistoryRepository.findExistingTasksByOrganizationIdOrderByTimestampDesc(10L)).thenReturn(List.of(evento));
+
+        List<TaskHistoryResponseDTO> result = taskService.getOrganizationHistory(10L, member);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).taskId()).isEqualTo(100L);
+        verify(taskHistoryRepository, never()).findByOrganizationIdOrderByTimestampDesc(anyLong());
+        verify(taskHistoryRepository, never()).findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Cargos acima de MEMBER devem receber o histórico completo respeitando a retenção de excluídas")
+    void testarHistoricoOrganizacaoGestorComRetencao() {
+        for (OrganizationRole role : List.of(OrganizationRole.OWNER, OrganizationRole.SUB_OWNER, OrganizationRole.MANAGER)) {
+            reset(organizationRepository, taskHistoryRepository);
+            UserEntity gestor = usuario(1L);
+            OrganizationEntity org = orgComMembro(10L, 7, gestor, role);
+            TaskHistoryEntity excluida = TaskHistoryEntity.builder()
+                    .id(2L).organization(org).taskTitle("Tarefa excluída")
+                    .user(gestor).actionType("DELETED").timestamp(LocalDateTime.now()).build();
+
+            when(organizationRepository.findById(10L)).thenReturn(Optional.of(org));
+            when(taskHistoryRepository.findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(eq(10L), any(LocalDateTime.class)))
+                    .thenReturn(List.of(excluida));
+
+            List<TaskHistoryResponseDTO> result = taskService.getOrganizationHistory(10L, gestor);
+
+            assertThat(result).as(role.name()).hasSize(1);
+            assertThat(result.get(0).actionType()).isEqualTo("DELETED");
+            ArgumentCaptor<LocalDateTime> corte = ArgumentCaptor.forClass(LocalDateTime.class);
+            verify(taskHistoryRepository).findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(eq(10L), corte.capture());
+            assertThat(corte.getValue()).isBetween(LocalDateTime.now().minusDays(7).minusMinutes(1), LocalDateTime.now().minusDays(7).plusMinutes(1));
+            verify(taskHistoryRepository, never()).findExistingTasksByOrganizationIdOrderByTimestampDesc(anyLong());
+            // A consulta do histórico não expurga registros (expurgo é responsabilidade de outro fluxo)
+            verify(taskHistoryRepository, never()).deleteExpiredDeletedHistory(anyLong(), any());
+        }
+    }
+
+    @Test
+    @DisplayName("OWNER sem retenção configurada deve receber o histórico completo")
+    void testarHistoricoOrganizacaoOwnerSemRetencao() {
+        UserEntity owner = usuario(1L);
+        OrganizationEntity org = orgComMembro(10L, null, owner, OrganizationRole.OWNER);
+
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(org));
+        when(taskHistoryRepository.findByOrganizationIdOrderByTimestampDesc(10L)).thenReturn(List.of());
+
+        taskService.getOrganizationHistory(10L, owner);
+
+        verify(taskHistoryRepository).findByOrganizationIdOrderByTimestampDesc(10L);
+        verify(taskHistoryRepository, never()).findByOrganizationIdWithinDeletedRetentionOrderByTimestampDesc(anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("Usuário que não pertence à organização não deve acessar o histórico")
+    void testarHistoricoOrganizacaoNaoMembroNegado() {
+        OrganizationEntity org = orgComMembro(10L, 7, usuario(1L), OrganizationRole.OWNER);
+        when(organizationRepository.findById(10L)).thenReturn(Optional.of(org));
+
+        assertThrows(SecurityException.class, () -> taskService.getOrganizationHistory(10L, usuario(99L)));
+        verifyNoInteractions(taskHistoryRepository);
     }
 
     @Test

@@ -7,6 +7,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import unievangelica.taskflow.api.domain.exception.BusinessException;
+import unievangelica.taskflow.api.domain.exception.ResourceNotFoundException;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationMemberEntity;
 import unievangelica.taskflow.api.domain.persistence.entities.OrganizationRole;
@@ -17,8 +19,10 @@ import unievangelica.taskflow.api.domain.persistence.repositories.OrganizationRe
 import unievangelica.taskflow.api.domain.persistence.repositories.UserRepository;
 import unievangelica.taskflow.api.domain.service.OrganizationService;
 import unievangelica.taskflow.api.dto.request.OrganizationRequestDTO;
+import unievangelica.taskflow.api.dto.response.MemberResponseDTO;
 import unievangelica.taskflow.api.dto.response.OrganizationResponseDTO;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -86,7 +90,7 @@ public class OrganizationServiceTest {
                 "Org Inválida", true, true, false, false, true, 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -98,7 +102,7 @@ public class OrganizationServiceTest {
                 "Org Sem Criação", false, true, false, false, false, 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -149,7 +153,7 @@ public class OrganizationServiceTest {
                 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -171,7 +175,7 @@ public class OrganizationServiceTest {
                 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -193,7 +197,7 @@ public class OrganizationServiceTest {
                 7
         );
 
-        assertThrows(IllegalArgumentException.class, () -> {
+        assertThrows(BusinessException.class, () -> {
             organizationService.criarOrganizacao(invalidRequest, owner);
         });
     }
@@ -333,8 +337,8 @@ public class OrganizationServiceTest {
     }
 
     @Test
-    @DisplayName("Adicionar Membro: Falha de hierarquia se SUB_OWNER tentar adicionar OWNER")
-    void testAdicionarMembroFalhaHierarquia() {
+    @DisplayName("Hierarquia: SUB_OWNER não pode atribuir o papel SUB_OWNER (validação usada pelos convites)")
+    void testValidarHierarquiaSubOwnerNaoAtribuiSubOwner() {
         OrganizationMemberEntity subOwnerMembership = new OrganizationMemberEntity();
         subOwnerMembership.setUser(owner);
         subOwnerMembership.setOrganization(organization);
@@ -344,7 +348,7 @@ public class OrganizationServiceTest {
                 .thenReturn(Optional.of(subOwnerMembership));
 
         assertThrows(SecurityException.class, () -> {
-            organizationService.adicionarMembro(10L, 2L, "OWNER", owner);
+            organizationService.validarHierarquiaDeRoles(owner, 10L, OrganizationRole.SUB_OWNER);
         });
     }
 
@@ -415,5 +419,83 @@ public class OrganizationServiceTest {
         assertThrows(SecurityException.class, () -> {
             organizationService.deletarOrganizacao(10L, member);
         });
+    }
+
+    // --- ALT-27: listagens e checagens sem carregar a lista de membros (sem N+1) ---
+
+    @Test
+    @DisplayName("listarMembros: membro recebe a lista da consulta única do repositório, sem usar getMembers()")
+    void testListarMembrosPorConsultaUnica() {
+        organization.setMembers(null); // a coleção não é usada
+        List<MemberResponseDTO> esperado = List.of(
+                new MemberResponseDTO(1L, "Owner User", "owner@x.com", "OWNER"),
+                new MemberResponseDTO(2L, "Normal Member", "member@x.com", "MEMBER"));
+        when(organizationRepository.existsById(10L)).thenReturn(true);
+        when(organizationMemberRepository.existsByOrganizationIdAndUserId(10L, 2L)).thenReturn(true);
+        when(organizationMemberRepository.listarMembros(10L)).thenReturn(esperado);
+
+        assertEquals(esperado, organizationService.listarMembros(10L, member));
+    }
+
+    @Test
+    @DisplayName("listarMembros: quem não é membro recebe 403 e a lista não é consultada")
+    void testListarMembrosNaoMembro() {
+        when(organizationRepository.existsById(10L)).thenReturn(true);
+        when(organizationMemberRepository.existsByOrganizationIdAndUserId(10L, 99L)).thenReturn(false);
+        UserEntity estranho = new UserEntity();
+        estranho.setId(99L);
+
+        assertThrows(SecurityException.class, () -> organizationService.listarMembros(10L, estranho));
+        verify(organizationMemberRepository, never()).listarMembros(anyLong());
+    }
+
+    @Test
+    @DisplayName("listarMembros: organização inexistente responde 'não encontrada'")
+    void testListarMembrosOrganizacaoInexistente() {
+        when(organizationRepository.existsById(404L)).thenReturn(false);
+
+        assertThrows(ResourceNotFoundException.class, () -> organizationService.listarMembros(404L, member));
+        verifyNoInteractions(organizationMemberRepository);
+    }
+
+    @Test
+    @DisplayName("listarOrganizacoesDoUsuario usa a consulta com JOIN FETCH da organização")
+    void testListarOrganizacoesDoUsuarioComJoinFetch() {
+        OrganizationMemberEntity vinculo = new OrganizationMemberEntity();
+        vinculo.setOrganization(organization);
+        vinculo.setUser(member);
+        vinculo.setRole(OrganizationRole.MEMBER);
+        when(organizationMemberRepository.findByUserIdComOrganizacao(2L)).thenReturn(List.of(vinculo));
+
+        List<OrganizationResponseDTO> orgs = organizationService.listarOrganizacoesDoUsuario(member);
+
+        assertEquals(1, orgs.size());
+        assertEquals("My Org", orgs.get(0).nome());
+        verify(organizationMemberRepository, never()).findByUserId(anyLong());
+    }
+
+    // --- Quem não é membro recebe 403 (SecurityException), como nas demais rotas ---
+
+    @Test
+    @DisplayName("Não membro tentando transferir a posse recebe SecurityException (403)")
+    void testTransferirPosseNaoMembro() {
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(10L, 99L)).thenReturn(Optional.empty());
+        UserEntity estranho = new UserEntity();
+        estranho.setId(99L);
+
+        SecurityException ex = assertThrows(SecurityException.class,
+                () -> organizationService.transferirPosse(10L, 1L, estranho));
+        assertEquals("Você não é membro desta organização.", ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Não membro tentando excluir a organização recebe SecurityException (403) e nada é excluído")
+    void testDeletarOrganizacaoNaoMembro() {
+        when(organizationMemberRepository.findByOrganizationIdAndUserId(10L, 99L)).thenReturn(Optional.empty());
+        UserEntity estranho = new UserEntity();
+        estranho.setId(99L);
+
+        assertThrows(SecurityException.class, () -> organizationService.deletarOrganizacao(10L, estranho));
+        verify(organizationRepository, never()).delete(any());
     }
 }

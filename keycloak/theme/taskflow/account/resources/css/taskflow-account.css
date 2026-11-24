@@ -1,6 +1,5 @@
 /* =========================================================
-   TASKFLOW - Account Console (Keycloak 24 / keycloak.v3)
-   O Account Console usa PatternFly 4 (classes "pf-c-*").
+   TASKFLOW - Account Console (Keycloak 26 / PatternFly 5 + fallback PatternFly 4)
    ========================================================= */
 
 :root {
@@ -10,6 +9,20 @@
   --tf-text-light: #6b7280;
   --tf-topbar-height: 64px;
 
+  /* PatternFly 5 */
+  --pf-v5-global--primary-color--100: var(--tf-primary);
+  --pf-v5-global--primary-color--200: var(--tf-primary-hover);
+  --pf-v5-global--link--Color: var(--tf-primary);
+  --pf-v5-global--link--Color--hover: var(--tf-primary-hover);
+  --pf-v5-global--active-color--100: var(--tf-primary);
+  --pf-v5-global--FontFamily--sans-serif: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --pf-v5-global--FontFamily--heading--sans-serif: 'Inter', 'Segoe UI', Roboto, sans-serif;
+  /* Texto sempre escuro sobre os cartões brancos (o modo escuro do sistema clareava o texto) */
+  --pf-v5-global--Color--100: #111827;
+  --pf-v5-global--Color--200: #374151;
+  color-scheme: light;
+
+  /* PatternFly 4 fallback */
   --pf-global--primary-color--100: var(--tf-primary);
   --pf-global--primary-color--200: var(--tf-primary-hover);
   --pf-global--link--Color: var(--tf-primary);
@@ -54,7 +67,11 @@ body {
   color: #ffffff;
 }
 
-/* ---------- Remove cabeçalho e barra lateral do Keycloak ---------- */
+/* ---------- Remove cabeçalho e barra lateral nativos do Keycloak ---------- */
+.pf-v5-c-masthead,
+.pf-v5-c-page__header,
+.pf-v5-c-page__sidebar,
+.pf-v5-c-skip-to-content,
 .pf-c-masthead,
 .pf-c-page__header,
 .pf-c-page__sidebar,
@@ -62,6 +79,8 @@ body {
   display: none !important;
 }
 
+.pf-v5-c-page,
+.pf-v5-c-page.pf-v5-m-full-height,
 .pf-c-page,
 .pf-c-page.pf-m-full-height {
   height: 100% !important;
@@ -72,6 +91,8 @@ body {
   background: transparent !important;
 }
 
+.pf-v5-c-page__main-container,
+.pf-v5-c-page__main,
 .pf-c-page__main-container,
 .pf-c-page__main {
   grid-area: main !important;
@@ -150,35 +171,42 @@ body {
 }
 
 /* ---------- Conteúdo em card, como no login ---------- */
+.pf-v5-c-page__main-section,
 .pf-c-page__main-section {
   max-width: 900px;
-  margin: 0 auto 24px auto !important; /* Espaçamento entre os cards */
-  background: #ffffff !important;      /* Cor de fundo unificada (branco puro) */
+  margin: 0 auto 24px auto !important;
+  background: #ffffff !important;
   padding: 32px !important;
-  border-radius: 16px !important;      /* Bordas arredondadas em todos os cards */
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important; /* Sombra suave individual */
+  border-radius: 16px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
 }
 
+.pf-v5-c-title,
 .pf-c-title {
   color: var(--tf-text-dark) !important;
   font-weight: 700 !important;
 }
 
 /* ---------- Formulários e botões ---------- */
+.pf-v5-c-form-control,
 .pf-c-form-control {
   border-radius: 8px !important;
 }
+.pf-v5-c-form-control:focus,
 .pf-c-form-control:focus {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
 }
 
+.pf-v5-c-button,
 .pf-c-button {
   border-radius: 8px !important;
   font-weight: 700 !important;
 }
+.pf-v5-c-button.pf-v5-m-primary,
 .pf-c-button.pf-m-primary {
   background-color: var(--tf-primary) !important;
 }
+.pf-v5-c-button.pf-v5-m-primary:hover,
 .pf-c-button.pf-m-primary:hover {
   background-color: var(--tf-primary-hover) !important;
 }
@@ -197,22 +225,26 @@ body {
     height: 44px;
   }
   .tf-back { margin-left: auto; }
+  .pf-v5-c-page__main-section,
   .pf-c-page__main-section { padding: 16px !important; }
 }
 
-/* ---------- Ocultar Cabeçalhos Nativos e Jump Links (PatternFly) ---------- */
-[data-testid="page-heading"] {
+/* ---------- Ocultar Cabeçalhos Nativos e Jump Links (PatternFly 5 & 4) ---------- */
+[data-testid="page-heading"],
+.pf-v5-c-jump-links,
+.pf-v5-l-grid__item:has(.pf-v5-c-jump-links),
+.pf-c-jump-links,
+.pf-l-grid__item:has(.pf-c-jump-links) {
   display: none !important;
 }
 
-.pf-c-jump-links {
-  display: none !important;
+/* ---------- Legibilidade: textos descritivos em preto ---------- */
+.pf-v5-c-page__main-section,
+.pf-v5-c-page__main-section p,
+.pf-v5-c-page__main-section .pf-v5-c-content,
+.pf-v5-c-page__main-section .pf-v5-c-helper-text,
+.pf-v5-c-page__main-section .pf-v5-c-data-list,
+.pf-v5-c-page__main-section .pf-v5-c-form__label,
+.pf-v5-c-page__main-section .pf-v5-c-description-list__text {
+  color: #111827 !important;
 }
-
-/* Ocultar a coluna lateral inteira que contém o jump-links */
-.pf-l-grid__item:has(.pf-c-jump-links),
-.pf-c-jump-links {
-  display: none !important;
-}
-
-
