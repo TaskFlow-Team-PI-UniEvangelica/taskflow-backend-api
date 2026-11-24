@@ -226,6 +226,18 @@ Após executar `make run-dev` ou `make run-dev-infra-db`, os seguintes serviços
 * **pgAdmin (Gerenciador de Banco de Dados):** `http://localhost:5050` (`admin@taskflow.com` | `admin`)
 * **API Spring Boot:** `http://localhost:8080`
 
+## Atualizar o client em um Keycloak já existente
+O `realm-export.json` só é importado quando o realm ainda não existe. Quem já tinha o Keycloak local precisa preencher uma vez o **Root URL** e o **Home URL** do client `taskflow-frontend`, usados pelo tema para voltar ao TaskFlow após a confirmação de e-mail. Nenhum dado é apagado.
+* **Pelo Painel Admin:** realm `taskflow-realm` → *Clients* → `taskflow-frontend` → *Settings* → *Root URL* e *Home URL* = `http://localhost:5173` → *Save*.
+* **Via Terminal (Linux):** usa o administrador configurado no container.
+  ```bash
+  docker exec taskflow_keycloak bash -c '
+  kc() { /opt/keycloak/bin/kcadm.sh "$@" --target-realm taskflow-realm --no-config --server http://localhost:8080 \
+    --realm master --user "$KC_BOOTSTRAP_ADMIN_USERNAME" --password "$KC_BOOTSTRAP_ADMIN_PASSWORD"; }
+  CID=$(kc get clients -q clientId=taskflow-frontend --fields id --format csv --noquotes) &&
+  kc update "clients/$CID" -s rootUrl=http://localhost:5173 -s baseUrl=http://localhost:5173'
+  ```
+
 # Como executar Testes Automatizados
 
 O projeto possui:
@@ -233,15 +245,15 @@ O projeto possui:
 * **Testes de Integração (`integration/`):** Executados contra **PostgreSQL 16 real via Testcontainers**, validando isolamento multi-tenant (matriz BOLA), migrações Flyway (`V1`–`V13`), privilégio mínimo, avatares e expiração de convites.
 
 ### Via Terminal (Maven Wrapper — JDK 21)
-* **Somente unitários (Linux):**
+* **Suíte completa — unitários + integração (Linux):** os testes com Testcontainers são ignorados se o Docker não estiver ativo.
   ```bash
   ./mvnw test
   ```
-* **Suíte completa — unitários + integração Testcontainers (requer Docker ativo):**
+* **Somente unitários (Linux):**
   ```bash
-  ./mvnw clean verify
+  ./mvnw test -Dtest='unievangelica/taskflow/api/test/unit/**'
   ```
-* **Via Makefile (Linux):**
+* **Suíte completa via Makefile (Linux):**
   ```bash
   make test
   ```
